@@ -9,10 +9,14 @@ using JSIStudios.SimpleRESTServices.Client;
 using JSIStudios.SimpleRESTServices.Client.Json;
 using net.openstack.Core;
 using net.openstack.Core.Domain;
+using net.openstack.Core.Domain.Mapping;
 using net.openstack.Core.Exceptions;
 using net.openstack.Core.Providers;
 using net.openstack.Core.Validators;
 using net.openstack.Providers.Rackspace.Exceptions;
+using net.openstack.Providers.Rackspace.Objects;
+using net.openstack.Providers.Rackspace.Objects.Mapping;
+using net.openstack.Providers.Rackspace.Objects.Response;
 using net.openstack.Providers.Rackspace.Validators;
 
 namespace net.openstack.Providers.Rackspace
@@ -39,6 +43,8 @@ namespace net.openstack.Providers.Rackspace
         private readonly IObjectStorageValidator _cloudFilesValidator;
         private readonly IObjectStorageMetadataProcessor _cloudFilesMetadataProcessor;
         private readonly IEncodeDecodeProvider _encodeDecodeProvider;
+        private readonly IStatusParser _statusParser;
+        private readonly IObjectMapper<BulkDeleteResponse, BulkDeletionResults> _bulkDeletionResultMapper;
 
         #region Constructors
 
@@ -92,17 +98,19 @@ namespace net.openstack.Providers.Rackspace
         /// <param name="identityProvider">An instance of an <see cref="IIdentityProvider"/> to override the default <see cref="CloudIdentity"/></param>
         /// <param name="restService">An instance of an <see cref="IRestService"/> to override the default <see cref="JsonRestServices"/></param>
         public CloudFilesProvider(CloudIdentity identity, IIdentityProvider identityProvider, IRestService restService)
-            : this(identity, identityProvider, restService, new CloudFilesValidator(), new CloudFilesMetadataProcessor(), new EncodeDecodeProvider()) { }
+            : this(identity, identityProvider, restService, new CloudFilesValidator(), new CloudFilesMetadataProcessor(), new EncodeDecodeProvider(), new HttpStatusCodeParser(), new BulkDeletionResultMapper(new HttpStatusCodeParser())) { }
 
-        internal CloudFilesProvider(IIdentityProvider cloudIdentityProvider, IRestService restService, IObjectStorageValidator cloudFilesValidator, IObjectStorageMetadataProcessor cloudFilesMetadataProcessor, IEncodeDecodeProvider encodeDecodeProvider)
-            : this(null, cloudIdentityProvider, restService, cloudFilesValidator, cloudFilesMetadataProcessor, encodeDecodeProvider) { }
+        internal CloudFilesProvider(IIdentityProvider cloudIdentityProvider, IRestService restService, IObjectStorageValidator cloudFilesValidator, IObjectStorageMetadataProcessor cloudFilesMetadataProcessor, IEncodeDecodeProvider encodeDecodeProvider, IStatusParser statusParser, IObjectMapper<BulkDeleteResponse, BulkDeletionResults> mapper)
+            : this(null, cloudIdentityProvider, restService, cloudFilesValidator, cloudFilesMetadataProcessor, encodeDecodeProvider, statusParser, mapper) { }
 
-        internal CloudFilesProvider(CloudIdentity defaultIdentity, IIdentityProvider cloudIdentityProvider, IRestService restService, IObjectStorageValidator cloudFilesValidator, IObjectStorageMetadataProcessor cloudFilesMetadataProcessor, IEncodeDecodeProvider encodeDecodeProvider)
+        internal CloudFilesProvider(CloudIdentity defaultIdentity, IIdentityProvider cloudIdentityProvider, IRestService restService, IObjectStorageValidator cloudFilesValidator, IObjectStorageMetadataProcessor cloudFilesMetadataProcessor, IEncodeDecodeProvider encodeDecodeProvider, IStatusParser statusParser, IObjectMapper<BulkDeleteResponse, BulkDeletionResults> bulkDeletionResultMapper)
             : base(defaultIdentity, cloudIdentityProvider, restService)
         {
             _cloudFilesValidator = cloudFilesValidator;
             _cloudFilesMetadataProcessor = cloudFilesMetadataProcessor;
             _encodeDecodeProvider = encodeDecodeProvider;
+            _statusParser = statusParser;
+            _bulkDeletionResultMapper = bulkDeletionResultMapper;
         }
 
 
@@ -152,21 +160,35 @@ namespace net.openstack.Providers.Rackspace
         }
 
         /// <inheritdoc />
-        public ObjectStore DeleteContainer(string container, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        public ObjectStore DeleteContainer(string container, bool deleteObjects = true, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
         {
             _cloudFilesValidator.ValidateContainerName(container);
+
+            if (deleteObjects)
+            {
+                var headers = GetContainerHeader(container, region, useInternalUrl, identity);
+                var countHeader = headers.FirstOrDefault(h => h.Key.Equals(ContainerObjectCount, StringComparison.OrdinalIgnoreCase));
+                if (!EqualityComparer<KeyValuePair<string, string>>.Default.Equals(countHeader, default(KeyValuePair<string, string>)))
+                {
+                    int count;
+                    if (!int.TryParse(countHeader.Value, out count))
+                        throw new Exception(string.Format("Unable to parse the object count header for container: {0}.  Actual count value: {1}", container, countHeader.Value));
+
+                    if (count > 0)
+                    {
+                        var objects = ListObjects(container, count, region: region, useInternalUrl: useInternalUrl, identity: identity);
+
+                        if(objects.Any())
+                            DeleteObjects(container, objects.Select(o => o.Name), region: region, useInternalUrl: useInternalUrl, identity: identity);
+                    }
+                }
+            }
+            
             var urlPath = new Uri(string.Format("{0}/{1}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container)));
 
-            var response = ExecuteRESTRequest(identity, urlPath, HttpMethod.DELETE);
+            ExecuteRESTRequest(identity, urlPath, HttpMethod.DELETE);
 
-            if (response.StatusCode == 204)
-                return ObjectStore.ContainerDeleted;
-            if (response.StatusCode == 404)
-                return ObjectStore.ContainerNotFound;
-            if (response.StatusCode == 409)
-                return ObjectStore.ContainerNotEmpty;
-
-            return ObjectStore.Unknown;
+            return ObjectStore.ContainerDeleted;
         }
 
         /// <inheritdoc />
@@ -341,7 +363,7 @@ namespace net.openstack.Providers.Rackspace
             var headers = new Dictionary<string, string>();
             foreach (KeyValuePair<string, string> m in metadata)
             {
-                if (m.Key.Contains(ContainerMetaDataPrefix))
+                if (m.Key.StartsWith(ContainerMetaDataPrefix))
                 {
                     headers.Add(m.Key, m.Value);
                 }
@@ -354,6 +376,48 @@ namespace net.openstack.Providers.Rackspace
             var urlPath = new Uri(string.Format("{0}/{1}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container)));
 
             ExecuteRESTRequest(identity, urlPath, HttpMethod.POST, headers: headers);
+        }
+
+        /// <inheritdoc />
+        public void DeleteContainerMetadata(string container, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            _cloudFilesValidator.ValidateContainerName(container);
+            if (metadata.Equals(null))
+            {
+                throw new ArgumentNullException();
+            }
+
+            var headers = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, string> m in metadata)
+            {
+                if (m.Key.StartsWith(ContainerRemoveMetaDataPrefix))
+                {
+                    headers.Add(m.Key, m.Value);
+                }
+                else
+                {
+                    headers.Add(ContainerRemoveMetaDataPrefix + m.Key, m.Value);
+                }
+            }
+
+            var urlPath = new Uri(string.Format("{0}/{1}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container)));
+
+            ExecuteRESTRequest(identity, urlPath, HttpMethod.POST, headers: headers);
+        }
+
+        /// <inheritdoc />
+        public void DeleteContainerMetadata(string container, string key, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            _cloudFilesValidator.ValidateContainerName(container);
+            if (String.IsNullOrWhiteSpace(key))
+            {
+                throw new ArgumentNullException();
+            }
+
+            var headers = new Dictionary<string, string>();
+            headers.Add(key, "xxxx"); // when deleting metadata, we must still provide a value for the key
+
+            DeleteContainerMetadata(container, headers, region, useInternalUrl, identity);
         }
 
         /// <inheritdoc />
@@ -517,6 +581,73 @@ namespace net.openstack.Providers.Rackspace
         }
 
         /// <inheritdoc />
+        public void UpdateObjectMetadata(string container, string objectName, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            _cloudFilesValidator.ValidateContainerName(container);
+            _cloudFilesValidator.ValidateObjectName(objectName);
+            if (metadata.Equals(null))
+            {
+                throw new ArgumentNullException();
+            }
+
+            var headers = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, string> m in metadata)
+            {
+                if (m.Key.StartsWith(ObjectMetaDataPrefix) || m.Key.StartsWith(ObjectRemoveMetaDataPrefix))
+                {
+                    headers.Add(m.Key, m.Value);
+                }
+                else
+                {
+                    headers.Add(ObjectMetaDataPrefix + m.Key, m.Value);
+                }
+            }
+
+            var urlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container), _encodeDecodeProvider.UrlEncode(objectName)));
+
+            ExecuteRESTRequest(identity, urlPath, HttpMethod.POST, headers: headers);
+        }
+
+        /// <inheritdoc />
+        public void DeleteObjectMetadata(string container, string objectName, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            _cloudFilesValidator.ValidateContainerName(container);
+            _cloudFilesValidator.ValidateObjectName(objectName);
+            if (metadata.Equals(null))
+            {
+                throw new ArgumentNullException();
+            }
+
+            var headers = GetObjectMetaData(container, objectName, region, useInternalUrl, identity);
+            foreach (KeyValuePair<string, string> m in metadata)
+            {
+                if (headers.ContainsKey(m.Key))
+                {
+                    headers.Remove(m.Key);
+                    headers.Add(ObjectRemoveMetaDataPrefix + m.Key, m.Value);
+                }
+            }
+
+            UpdateObjectMetadata(container, objectName, headers, region, useInternalUrl, identity);
+        }
+
+        /// <inheritdoc />
+        public void DeleteObjectMetadata(string container, string objectName, string key, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            _cloudFilesValidator.ValidateContainerName(container);
+            _cloudFilesValidator.ValidateObjectName(objectName);
+            if (String.IsNullOrWhiteSpace(key))
+            {
+                throw new ArgumentNullException();
+            }
+
+            var headers = new Dictionary<string, string>();
+            headers.Add(key, "xxxx"); // when deleting metadata, we must still provide a value for the key
+
+            DeleteObjectMetadata(container, objectName, headers, region, useInternalUrl, identity);
+        }
+
+        /// <inheritdoc />
         public IEnumerable<ContainerObject> ListObjects(string container, int? limit = null, string marker = null, string markerEnd = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
         {
             _cloudFilesValidator.ValidateContainerName(container);
@@ -572,7 +703,7 @@ namespace net.openstack.Providers.Rackspace
             }
             var urlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container), _encodeDecodeProvider.UrlEncode(objectName)));
 
-            StreamRESTRequest(identity, urlPath, HttpMethod.PUT, stream, chunkSize, headers: headers, isRetry: true, progressUpdated: progressUpdated, requestSettings: new RequestSettings {ChunkRequest = true});
+            StreamRESTRequest(identity, urlPath, HttpMethod.PUT, stream, chunkSize, headers: headers, progressUpdated: progressUpdated, requestSettings: new RequestSettings {ChunkRequest = true});
         }
 
         /// <inheritdoc />
@@ -660,38 +791,100 @@ namespace net.openstack.Providers.Rackspace
             _cloudFilesValidator.ValidateObjectName(destinationObjectName);
 
             var urlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(sourceContainer), _encodeDecodeProvider.UrlEncode(sourceObjectName)));
-
+            
             if(headers == null)
                 headers = new Dictionary<string, string>();
 
-            headers.Add(Destination, string.Format("{0}/{1}", destinationContainer, destinationObjectName));
-            var response = ExecuteRESTRequest(identity, urlPath, HttpMethod.COPY, headers: headers);
+            headers.Add(DestinationMetadataKey, string.Format("{0}/{1}", destinationContainer, destinationObjectName));
+            ExecuteRESTRequest(identity, urlPath, HttpMethod.COPY, headers: headers);
 
-            if (response.StatusCode == 201)
-                return ObjectStore.ObjectCreated;
-            if (response.StatusCode == 404)
-                return ObjectStore.ContainerNotFound;
-
-            return ObjectStore.Unknown;
+            return ObjectStore.ObjectCreated;
         }
 
         /// <inheritdoc />
-        public ObjectStore DeleteObject(string container, string objectName, Dictionary<string, string> headers = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        public ObjectStore DeleteObject(string container, string objectName, Dictionary<string, string> headers = null, bool deleteSegments = true, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
         {
             _cloudFilesValidator.ValidateContainerName(container);
             _cloudFilesValidator.ValidateObjectName(objectName);
 
-            var urlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container), _encodeDecodeProvider.UrlEncode(objectName)));
+            Dictionary<string, string> objectHeader = null;
+            if(deleteSegments)
+                objectHeader = GetObjectHeaders(container, objectName, region, useInternalUrl, identity);
 
-            var response = ExecuteRESTRequest(identity, urlPath, HttpMethod.DELETE, headers: headers);
+            if (deleteSegments && objectHeader != null && objectHeader.Any(h => h.Key.Equals(ObjectManifestMetadataKey, StringComparison.OrdinalIgnoreCase)))
+            {
+                var objects = ListObjects(container, region: region, useInternalUrl: useInternalUrl,
+                                               identity: identity);
 
-            if (response.StatusCode == 204)
-                return ObjectStore.ObjectDeleted;
-            if (response.StatusCode == 404)
-                return ObjectStore.ContainerNotFound;
+                if (objects != null && objects.Any())
+                {
+                    var segments = objects.Where(f => f.Name.StartsWith(string.Format("{0}.seg", objectName)));
+                    var delObjects = new List<string> { objectName };
+                    if (segments.Any())
+                        delObjects.AddRange(segments.Select(s => s.Name));
 
-            return ObjectStore.Unknown;
+                    DeleteObjects(container, delObjects, headers, region, useInternalUrl, identity);
+                }
+                else
+                    throw new Exception(string.Format("Object \"{0}\" in container \"{1}\" does not exist.", objectName, container));
+            }
+            else
+            {
+                var urlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container), _encodeDecodeProvider.UrlEncode(objectName)));
 
+                ExecuteRESTRequest(identity, urlPath, HttpMethod.DELETE, headers: headers);
+            }
+            
+            return ObjectStore.ObjectDeleted;
+        }
+
+        /// <summary>
+        /// Deletes container objects.
+        /// </summary>
+        /// <param name="container">The container name.</param>
+        /// <param name="objects">List of container object names for the objects that should be deleted.</param>
+        /// <param name="headers">A list of HTTP headers to send to the service. </param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        /// <returns><see cref="ObjectStore"/></returns>
+        public ObjectStore DeleteObjects(string container, IEnumerable<string> objects, Dictionary<string, string> headers = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            _cloudFilesValidator.ValidateContainerName(container);
+            foreach (var objectName in objects)
+            {
+                _cloudFilesValidator.ValidateObjectName(objectName);
+            }
+
+            return BulkDelete(objects.Select(o => string.Format("{0}/{1}", container, o)), headers, region, useInternalUrl, identity);
+        }
+
+        /// <summary>
+        /// Deletes a list of items.  Items can be containers or objects.
+        /// </summary>
+        /// <param name="items">List of items (containers or objects) that should be deleted. <remarks>Should be in the form of: Container = \"/container_name\"  Object = \"container_name/my_image.jpg\"</remarks></param>
+        /// <param name="headers">A list of HTTP headers to send to the service. </param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        /// <returns><see cref="ObjectStore"/></returns>
+        public ObjectStore BulkDelete(IEnumerable<string> items, Dictionary<string, string> headers = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        {
+            var urlPath = new Uri(string.Format("{0}/?bulk-delete", GetServiceEndpointCloudFiles(identity, region, useInternalUrl)));
+
+            var body = string.Join('\n'.ToString(), items.Select(o => _encodeDecodeProvider.UrlEncode(o)));
+
+            var response = ExecuteRESTRequest<BulkDeleteResponse>(identity, urlPath, HttpMethod.DELETE, body: body, headers: headers, settings: new JsonRequestSettings { ContentType = "text/plain" });
+
+            var status = _statusParser.Parse(response.Data.Status);
+ 
+            if (status.Code != 200 && !response.Data.Errors.Any())
+            {
+                response.Data.AllItems = items;
+                throw new BulkDeletionException(response.Data.Status, _bulkDeletionResultMapper.Map(response.Data));    
+            }
+
+            return ObjectStore.ObjectDeleted;
         }
 
         /// <inheritdoc />
@@ -702,7 +895,7 @@ namespace net.openstack.Providers.Rackspace
             if (result != ObjectStore.ObjectCreated)
                 return result;
 
-            return DeleteObject(sourceContainer, sourceObjectName, headers, region, useInternalUrl, identity);
+            return DeleteObject(sourceContainer, sourceObjectName, headers, true, region, useInternalUrl, identity);
         }
 
         /// <inheritdoc />
@@ -825,13 +1018,6 @@ namespace net.openstack.Providers.Rackspace
 
         #region Private methods
 
-        private string GetObjectContentLength(CloudIdentity identity, string sourceContainer, string sourceObjectName, string region, bool useInternalUrl)
-        {
-            var sourceHeaders = GetObjectHeaders(sourceContainer, sourceObjectName, region,useInternalUrl, identity);
-            var contentLength = sourceHeaders.FirstOrDefault(x => x.Key.Equals(ContentLength, StringComparison.OrdinalIgnoreCase)).Value;
-            return contentLength;
-        }
-
         protected string GetServiceEndpointCloudFiles(CloudIdentity identity, string region = null, bool useInternalUrl = false)
         {
             return useInternalUrl ? base.GetInternalServiceEndpoint(identity, "cloudFiles", region) : base.GetPublicServiceEndpoint(identity, "cloudFiles", region);
@@ -881,9 +1067,9 @@ namespace net.openstack.Providers.Rackspace
                 var remaining = (totalLength - LargeFileBatchThreshold * i);
                 var length = (remaining < LargeFileBatchThreshold) ? remaining : LargeFileBatchThreshold;
 
-                var urlPath = new Uri(string.Format("{0}/{1}/{2}.seg{3}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), container, objectName, i));
+                var urlPath = new Uri(string.Format("{0}/{1}/{2}.seg{3}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), container, objectName, i.ToString("0000")));
                 long segmentBytesWritten = 0;
-                StreamRESTRequest(identity, urlPath, HttpMethod.PUT, stream, chunkSize, length, headers: headers, isRetry: true, requestSettings: new RequestSettings {ChunkRequest = true}, progressUpdated:
+                StreamRESTRequest(identity, urlPath, HttpMethod.PUT, stream, chunkSize, length, headers: headers, requestSettings: new RequestSettings {ChunkRequest = true}, progressUpdated:
                     bytesWritten =>
                     {
                         if (progressUpdated != null)
@@ -903,7 +1089,7 @@ namespace net.openstack.Providers.Rackspace
                 headers = new Dictionary<string, string>();
 
             headers.Add(ObjectManifestMetadataKey, string.Format("{0}/{1}", container, objectName));
-            StreamRESTRequest(identity, segmentUrlPath, HttpMethod.PUT, new MemoryStream(new Byte[0]), chunkSize, headers: headers, isRetry: true, requestSettings: new RequestSettings {ChunkRequest = true}, progressUpdated:
+            StreamRESTRequest(identity, segmentUrlPath, HttpMethod.PUT, new MemoryStream(new Byte[0]), chunkSize, headers: headers, requestSettings: new RequestSettings {ChunkRequest = true}, progressUpdated:
                 (bytesWritten) =>
                 {
                     if (progressUpdated != null)
@@ -915,7 +1101,7 @@ namespace net.openstack.Providers.Rackspace
 
         protected override IObjectStorageProvider BuildProvider(CloudIdentity identity)
         {
-            return new CloudFilesProvider(identity, IdentityProvider, RestService, _cloudFilesValidator, _cloudFilesMetadataProcessor, _encodeDecodeProvider);
+            return new CloudFilesProvider(identity, IdentityProvider, RestService, _cloudFilesValidator, _cloudFilesMetadataProcessor, _encodeDecodeProvider, _statusParser, _bulkDeletionResultMapper);
         }
 
         #endregion
@@ -934,6 +1120,7 @@ namespace net.openstack.Providers.Rackspace
         public const string AccountObjectCount = "x-account-object-count";
         //Container Constants
         public const string ContainerMetaDataPrefix = "x-container-meta-";
+        public const string ContainerRemoveMetaDataPrefix = "x-remove-container-meta-";
         public const string ContainerBytesUsed = "x-container-bytes-used";
         public const string ContainerObjectCount = "x-container-object-count";
         public const string WebIndex = "x-container-meta-web-index";
@@ -951,12 +1138,11 @@ namespace net.openstack.Providers.Rackspace
         public const string CdnIosUri = "x-cdn-ios-uri";
         //Object Constants
         public const string ObjectMetaDataPrefix = "x-object-meta-";
+        public const string ObjectRemoveMetaDataPrefix = "x-remove-object-meta-";
         public const string ObjectDeleteAfter = "x-delete-after";
         public const string ObjectDeleteAt = "x-delete-at";
         public const string Etag = "etag";
-        public const string ContentType = "content-type";
-        public const string ContentLength = "content-length";
-        public const string Destination = "Destination";
+        public const string DestinationMetadataKey = "destination";
         public const string ObjectManifestMetadataKey = "x-object-manifest";
 
         //Cdn Object Constants
@@ -964,10 +1150,15 @@ namespace net.openstack.Providers.Rackspace
 
         #endregion
 
-        public const long LargeFileBatchThreshold = 5368709120; // 5GB
+        private static long _largeFileBatchThreshold = 5368709120; // 5GB
+
+        public static long LargeFileBatchThreshold
+        {
+            get { return _largeFileBatchThreshold; }
+            internal set { _largeFileBatchThreshold = value; }
+        }
         public const string ProcessedHeadersMetadataKey = "metadata";
         public const string ProcessedHeadersHeaderKey = "headers";
-
         #endregion
  
     }

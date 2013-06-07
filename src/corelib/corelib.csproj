@@ -65,7 +65,11 @@
     <Compile Include="Core\Domain\ContainerObject.cs" />
     <Compile Include="Core\Domain\Flavor.cs" />
     <Compile Include="Core\Domain\FlavorDetails.cs" />
+    <Compile Include="Providers\Rackspace\Exceptions\BulkDeletionException.cs" />
+    <Compile Include="Core\HttpStatusCodeParser.cs" />
+    <Compile Include="Core\IStatusParser.cs" />
     <Compile Include="Core\Providers\IBlockStorageProvider.cs" />
+    <Compile Include="Core\Domain\Status.cs" />
     <Compile Include="Core\Validators\IBlockStorageValidator.cs" />
     <Compile Include="Core\Domain\ImageType.cs" />
     <Compile Include="Core\Domain\Link.cs" />
@@ -105,6 +109,10 @@
     <Compile Include="Core\IEncodeDecodeProvider.cs" />
     <Compile Include="Core\Exceptions\NoDefaultRegionSetException.cs" />
     <Compile Include="Core\Exceptions\ServerEnteredErrorStateException.cs" />
+    <Compile Include="Providers\Rackspace\Objects\BulkDeletionResults.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Domain.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Mapping\BulkDeletionResultMapper.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Response\BulkDeleteResponse.cs" />
     <Compile Include="Providers\Rackspace\Validators\CloudFilesValidator.cs" />
     <Compile Include="Core\Validators\IObjectStorageValidator.cs" />
     <Compile Include="Providers\Rackspace\EncodeDecodeProvider.cs" />
@@ -175,7 +183,7 @@
     <Compile Include="ExtensionMethods.cs" />
     <Compile Include="Core\Providers\IComputeProvider.cs" />
     <Compile Include="Core\Domain\IdentityToken.cs" />
-    <Compile Include="Providers\Rackspace\RackspaceCloudIdentity.cs" />
+    <Compile Include="Providers\Rackspace\Objects\RackspaceCloudIdentity.cs" />
     <Compile Include="Providers\Rackspace\Objects\Request\RescueServerRequest.cs" />
     <Compile Include="Providers\Rackspace\Objects\Response\RescueServerResponse.cs" />
     <Compile Include="Providers\Rackspace\Objects\Request\RevertServerResizeRequest.cs" />
@@ -217,9 +225,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Icons\openstack_net_logo.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    <None Include="Icons\openstack_net_logo.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

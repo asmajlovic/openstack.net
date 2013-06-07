@@ -39,11 +39,12 @@ namespace net.openstack.Core.Providers
         /// Deletes the container.
         /// </summary>
         /// <param name="container">The container name.</param>
+        /// <param name="deleteObjects">Indicates whether all objects in the container should be deleted prior to trying to delete the container.</param>
         /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
         /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
         /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
         /// <returns><see cref="ObjectStore"/></returns>
-        ObjectStore DeleteContainer(string container, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+        ObjectStore DeleteContainer(string container, bool deleteObjects = true, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
 
         /// <summary>
         /// Gets the container header.
@@ -142,6 +143,28 @@ namespace net.openstack.Core.Providers
         /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
         /// <exception cref="System.ArgumentNullException"></exception>
         void UpdateContainerMetadata(string container, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+
+        /// <summary>
+        /// Deletes multiple metadata items from the container
+        /// </summary>
+        /// <param name="container">The container name.</param>
+        /// <param name="metadata">The metadata to delete. <remarks>Dictionary&lt;string,string&gt;</remarks></param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        /// <exception cref="System.ArgumentNullException"></exception>
+        void DeleteContainerMetadata(string container, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+
+        /// <summary>
+        /// Deletes single metadata item from the container
+        /// </summary>
+        /// <param name="container">The container name.</param>
+        /// <param name="key">The single metadata item to delete. <c>string</c></param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        /// <exception cref="System.ArgumentNullException"></exception>
+        void DeleteContainerMetadata(string container, string key, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
 
         /// <summary>
         /// Adds the container headers.
@@ -252,6 +275,41 @@ namespace net.openstack.Core.Providers
         Dictionary<string, string> GetObjectMetaData(string container, string objectName, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
 
         /// <summary>
+        /// Updates the specified metadata items for the object.  <remarks>If the metadata key already exists, it will updated, else it will be added.</remarks>
+        /// </summary>
+        /// <param name="container">The container name.</param>
+        /// <param name="objectName">Name of the object.<remarks>Example image_name.jpeg</remarks></param>
+        /// <param name="metadata">Dictionary of metadata keys/value pairs to associate with the object</param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        /// <returns>Dictionary&lt;string,string&gt; of Meta data</returns>
+        void UpdateObjectMetadata(string container, string objectName, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+
+        /// <summary>
+        /// Deletes multiple metadata keys, values from an object
+        /// </summary>
+        /// <param name="container">The container name.</param>
+        /// <param name="objectName">Name of the object.<remarks>Example image_name.jpeg</remarks></param>
+        /// <param name="metadata">Dictionary of metadata keys, values to delete</param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        ///<param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        void DeleteObjectMetadata(string container, string objectName, Dictionary<string, string> metadata, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+
+        /// <summary>
+        /// Deletes a single metadata key, value from an object
+        /// </summary>
+        /// <param name="container">The container name.</param>
+        /// <param name="objectName">Name of the object.<remarks>Example image_name.jpeg</remarks></param>
+        /// <param name="key">Single metadata key to delete</param>
+        /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
+        ///<param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
+        /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
+        void DeleteObjectMetadata(string container, string objectName, string key, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+
+
+        /// <summary>
         /// Lists the objects.
         /// </summary>
         /// <param name="container">The container name.</param>
@@ -353,16 +411,17 @@ namespace net.openstack.Core.Providers
         ObjectStore MoveObject(string sourceContainer, string sourceObjectName, string destinationContainer, string destinationObjectName, Dictionary<string, string> headers = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
 
         /// <summary>
-        /// Deletes the object.
+        /// Deletes a specified object.
         /// </summary>
         /// <param name="container">The container name.</param>
         /// <param name="objectName">Name of the object.<remarks>Example image_name.jpeg</remarks></param>
         /// <param name="headers">A list of HTTP headers to send to the service. </param>
+        /// <param name="deleteSegments">Indicates whether the file's segments should be deleted if any exist.</param>
         /// <param name="region">The region in which to execute this action.<remarks>If not specified, the user’s default region will be used.</remarks></param>
         /// <param name="useInternalUrl">If set to <c>true</c> uses ServiceNet URL.</param>
         /// <param name="identity">The users Cloud Identity. <see cref="CloudIdentity"/> <remarks>If not specified, the default identity given in the constructor will be used.</remarks> </param>
         /// <returns><see cref="ObjectStore"/></returns>
-        ObjectStore DeleteObject(string container, string objectName, Dictionary<string, string> headers = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
+        ObjectStore DeleteObject(string container, string objectName, Dictionary<string, string> headers = null, bool deleteSegments = true, string region = null, bool useInternalUrl = false, CloudIdentity identity = null);
 
         /// <summary>
         /// Purges the object from CDN.
