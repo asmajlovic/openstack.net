@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using JSIStudios.SimpleRESTServices.Client;
@@ -98,7 +99,7 @@ namespace net.openstack.Providers.Rackspace
         /// <param name="identityProvider">An instance of an <see cref="IIdentityProvider"/> to override the default <see cref="CloudIdentity"/></param>
         /// <param name="restService">An instance of an <see cref="IRestService"/> to override the default <see cref="JsonRestServices"/></param>
         public CloudFilesProvider(CloudIdentity identity, IIdentityProvider identityProvider, IRestService restService)
-            : this(identity, identityProvider, restService, new CloudFilesValidator(), new CloudFilesMetadataProcessor(), new EncodeDecodeProvider(), new HttpStatusCodeParser(), new BulkDeletionResultMapper(new HttpStatusCodeParser())) { }
+            : this(identity, identityProvider, restService, CloudFilesValidator.Default, CloudFilesMetadataProcessor.Default, EncodeDecodeProvider.Default, HttpStatusCodeParser.Default, new BulkDeletionResultMapper(HttpStatusCodeParser.Default)) { }
 
         internal CloudFilesProvider(IIdentityProvider cloudIdentityProvider, IRestService restService, IObjectStorageValidator cloudFilesValidator, IObjectStorageMetadataProcessor cloudFilesMetadataProcessor, IEncodeDecodeProvider encodeDecodeProvider, IStatusParser statusParser, IObjectMapper<BulkDeleteResponse, BulkDeletionResults> mapper)
             : this(null, cloudIdentityProvider, restService, cloudFilesValidator, cloudFilesMetadataProcessor, encodeDecodeProvider, statusParser, mapper) { }
@@ -151,9 +152,9 @@ namespace net.openstack.Providers.Rackspace
 
             var response = ExecuteRESTRequest(identity, urlPath, HttpMethod.PUT);
 
-            if (response.StatusCode == 201)
+            if (response.StatusCode == HttpStatusCode.Created)
                 return ObjectStore.ContainerCreated;
-            if (response.StatusCode == 202)
+            if (response.StatusCode == HttpStatusCode.Accepted)
                 return ObjectStore.ContainerExists;
 
             return ObjectStore.Unknown;
@@ -648,7 +649,7 @@ namespace net.openstack.Providers.Rackspace
         }
 
         /// <inheritdoc />
-        public IEnumerable<ContainerObject> ListObjects(string container, int? limit = null, string marker = null, string markerEnd = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
+        public IEnumerable<ContainerObject> ListObjects(string container, int? limit = null, string marker = null, string markerEnd = null,  string prefix = null, string region = null, bool useInternalUrl = false, CloudIdentity identity = null)
         {
             _cloudFilesValidator.ValidateContainerName(container);
             var urlPath = new Uri(string.Format("{0}/{1}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), _encodeDecodeProvider.UrlEncode(container)));
@@ -663,6 +664,9 @@ namespace net.openstack.Providers.Rackspace
 
             if (!string.IsNullOrWhiteSpace(markerEnd))
                 queryStringParameter.Add("end_marker", markerEnd);
+
+            if (!string.IsNullOrWhiteSpace(prefix))
+                queryStringParameter.Add("prefix", prefix);
 
             var response = ExecuteRESTRequest<ContainerObject[]>(identity, urlPath, HttpMethod.GET, null, queryStringParameter);
 
@@ -726,7 +730,7 @@ namespace net.openstack.Providers.Rackspace
                         CopyStream(respStream, outputStream, chunkSize, progressUpdated);
                     }
 
-                    var respHeaders = resp.Headers.AllKeys.Select(key => new HttpHeader { Key = key, Value = resp.GetResponseHeader(key) }).ToList();
+                    var respHeaders = resp.Headers.AllKeys.Select(key => new HttpHeader(key, resp.GetResponseHeader(key))).ToList();
 
                     return new Response(resp.StatusCode, respHeaders, "[Binary]");
                 }
@@ -938,7 +942,7 @@ namespace net.openstack.Providers.Rackspace
             }
             var urlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFilesCDN(identity, region), _encodeDecodeProvider.UrlEncode(container), _encodeDecodeProvider.UrlEncode(objectName)));
             var response = ExecuteRESTRequest(identity, urlPath, HttpMethod.DELETE, headers: headers);
-            if (response.StatusCode == 204)
+            if (response.StatusCode == HttpStatusCode.NoContent)
                 return ObjectStore.ObjectPurged;
 
             return ObjectStore.Unknown;

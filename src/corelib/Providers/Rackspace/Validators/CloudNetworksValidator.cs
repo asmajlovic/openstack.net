@@ -8,10 +8,29 @@ namespace net.openstack.Providers.Rackspace.Validators
 {
     public class CloudNetworksValidator : INetworksValidator
     {
+        /// <summary>
+        /// A default instance of <see cref="CloudNetworksValidator"/>.
+        /// </summary>
+        private static readonly CloudNetworksValidator _default;
+
+        /// <summary>
+        /// Gets a default instance of <see cref="CloudNetworksValidator"/>.
+        /// </summary>
+        public static CloudNetworksValidator Default
+        {
+            get
+            {
+                return _default;
+            }
+        }
+
+        /// <inheritdoc/>
         public void ValidateCidr(string cidr)
         {
-            if (string.IsNullOrWhiteSpace(cidr))
-                throw new ArgumentNullException("cidr", "ERROR: CIDR cannot be null");
+            if (cidr == null)
+                throw new ArgumentNullException("cidr");
+            if (string.IsNullOrEmpty(cidr))
+                throw new CidrFormatException("cidr cannot be empty");
 
             if (!cidr.Contains("/"))
                 throw new CidrFormatException(string.Format("ERROR: CIDR {0} is missing /", cidr));
