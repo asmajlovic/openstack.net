@@ -1,65 +1,63 @@
 ﻿using System;
 using System.Runtime.Serialization;
-using System.Security;
 using net.openstack.Core.Domain;
-using net.openstack.Core.Providers;
 
 namespace net.openstack.Core.Exceptions
 {
     /// <summary>
     /// The exception that is thrown when the server enters an error state during a
-    /// call to <see cref="O:IComputeProvider.WaitForServerState"/> or <see cref="O:IComputeProvider.WaitForImageState"/>.
+    /// call to <see cref="O:IComputeProvider.WaitForServerState"/>.
     /// </summary>
+    /// <threadsafety static="true" instance="false"/>
     [Serializable]
     public class ServerEnteredErrorStateException : Exception
     {
+        [NonSerialized]
+        private ExceptionData _state;
+
         /// <summary>
-        /// The state of the server or image.
+        /// Gets the error state the server entered.
         /// </summary>
         /// <seealso cref="ServerState"/>
-        /// <seealso cref="ImageState"/>
-        public string Status
+        public ServerState Status
         {
-            get;
-            private set;
+            get
+            {
+                return ServerState.FromName(_state.Status);
+            }
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ServerEnteredErrorStateException"/> class
         /// with the specified error state.
         /// </summary>
-        /// <param name="status">The error state entered by the server or image.</param>
-        public ServerEnteredErrorStateException(string status)
+        /// <param name="status">The error state entered by the server.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="status"/> is <c>null</c>.</exception>
+        public ServerEnteredErrorStateException(ServerState status)
             : base(string.Format("The server entered an error state: '{0}'", status))
         {
-            Status = status;
+            if (status == null)
+                throw new ArgumentNullException("status");
+
+            _state.Status = status.Name;
+#if !NET35
+            SerializeObjectState += (ex, args) => args.AddSerializedState(_state);
+#endif
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ServerEnteredErrorStateException"/> class with
-        /// serialized data.
-        /// </summary>
-        /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="info"/> is <c>null</c>.</exception>
-        protected ServerEnteredErrorStateException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
+        [Serializable]
+        private struct ExceptionData : ISafeSerializationData
         {
-            if (info == null)
-                throw new ArgumentNullException("info");
+            public string Status
+            {
+                get;
+                set;
+            }
 
-            Status = (string)info.GetValue("Status", typeof(string));
-        }
-
-        /// <inheritdoc/>
-        [SecurityCritical]
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            if (info == null)
-                throw new ArgumentNullException("info");
-
-            base.GetObjectData(info, context);
-            info.AddValue("Status", Status);
+            void ISafeSerializationData.CompleteDeserialization(object deserialized)
+            {
+                ((ServerEnteredErrorStateException)deserialized)._state = this;
+            }
         }
     }
 }

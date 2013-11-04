@@ -1,24 +1,69 @@
-using System.Runtime.Serialization;
-
 namespace net.openstack.Core.Domain
 {
+    using net.openstack.Core.Providers;
+    using Newtonsoft.Json;
 
-    [DataContract]
+    /// <summary>
+    /// Represents a user account.
+    /// </summary>
+    /// <seealso cref="IIdentityProvider.ListUsers"/>
+    /// <threadsafety static="true" instance="false"/>
+    [JsonObject(MemberSerialization.OptIn)]
     public class User
     {
-        [DataMember(Name = "RAX-AUTH:defaultRegion")]
+        /// <summary>
+        /// Gets or sets the default region of the user.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        /// <remarks>
+        /// Changes to this property are not automatically saved on the server. To apply the
+        /// changes, call <see cref="IIdentityProvider.UpdateUser"/> after setting this property.
+        ///
+        /// <note>
+        /// This property is a Rackspace-specific extension to the OpenStack Identity Service.
+        /// </note>
+        /// </remarks>
+        [JsonProperty("RAX-AUTH:defaultRegion")]
         public string DefaultRegion { get; set; }
 
-        [DataMember(Name="id", EmitDefaultValue = true)]
-        public string Id { get; set; }
+        /// <summary>
+        /// Gets the unique identifier for the user.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("id", DefaultValueHandling = DefaultValueHandling.Include)]
+        public string Id { get; private set; }
 
-        [DataMember(Name="username")]
+        /// <summary>
+        /// Gets or sets the "username" property of the user.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        /// <remarks>
+        /// Changes to this property are not automatically saved on the server. To apply the
+        /// changes, call <see cref="IIdentityProvider.UpdateUser"/> after setting this property.
+        /// </remarks>
+        [JsonProperty("username")]
         public string Username { get; set; }
 
-        [DataMember(Name="email")]
+        /// <summary>
+        /// Gets or sets the "email" property of the user.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        /// <remarks>
+        /// Changes to this property are not automatically saved on the server. To apply the
+        /// changes, call <see cref="IIdentityProvider.UpdateUser"/> after setting this property.
+        /// </remarks>
+        [JsonProperty("email")]
         public string Email { get; set; }
 
-        [DataMember(Name = "enabled")]
+        /// <summary>
+        /// Gets or sets the "enabled" property of the user.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        /// <remarks>
+        /// Changes to this property are not automatically saved on the server. To apply the
+        /// changes, call <see cref="IIdentityProvider.UpdateUser"/> after setting this property.
+        /// </remarks>
+        [JsonProperty("enabled")]
         public bool Enabled { get; set; }
     }
 }

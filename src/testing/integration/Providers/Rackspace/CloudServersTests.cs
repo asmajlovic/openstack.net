@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using net.openstack.Core.Domain;
@@ -204,7 +205,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             var server = _testServer2.GetDetails();
 
-            Assert.AreEqual(server.AccessIPv4, server.Addresses.Public.First(a => a.Version.Equals("4")).Address);
+            Assert.AreEqual(server.AccessIPv4, server.Addresses.Public.First(a => a.AddressFamily == AddressFamily.InterNetwork).ToString());
         }
 
         [TestMethod]
@@ -212,7 +213,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             var server = _testServer2.GetDetails();
 
-            Assert.AreEqual(server.AccessIPv6, server.Addresses.Public.First(a => a.Version.Equals("6")).Address);
+            Assert.AreEqual(server.AccessIPv6, server.Addresses.Public.First(a => a.AddressFamily == AddressFamily.InterNetworkV6).ToString());
         }
 
         [TestMethod]
@@ -431,7 +432,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             _testImage.WaitForActive();
 
-            Assert.AreEqual(ImageState.ACTIVE, _testImage.Status);
+            Assert.AreEqual(ImageState.Active, _testImage.Status);
         }
 
         [TestMethod]
@@ -614,12 +615,16 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         [TestMethod]
         public void Should_Successfully_To_And_Login_With_Old_Password()
         {
+            Assert.Inconclusive("SshClient cannot be used from assemblies with strong names.");
+
+#if false
             using (var client = new Renci.SshNet.SshClient(_testServer.AccessIPv4, "root", _newTestServer.AdminPassword))
             {
                 client.Connect();
 
                 Assert.IsTrue(client.IsConnected);
             }
+#endif
         }
 
         [TestMethod]
@@ -634,6 +639,9 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         [TestMethod]
         public void Should_Successfully_To_And_Login_With_New_Password()
         {
+            Assert.Inconclusive("SshClient cannot be used from assemblies with strong names.");
+
+#if false
             bool sucess = false;
             for (int i = 0; i < 10; i++)
             {
@@ -650,6 +658,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
             }
 
             Assert.IsTrue(sucess);
+#endif
         }
 
         [TestMethod]
@@ -665,9 +674,9 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             Assert.IsTrue(_rebootSuccess); // If the reboot was not successful in the previous test, then fail this one too.
 
-            _testServer.WaitForState(ServerState.REBOOT, new[] { ServerState.ERROR, ServerState.UNKNOWN, ServerState.SUSPENDED });
+            _testServer.WaitForState(ServerState.Reboot, new[] { ServerState.Error, ServerState.Unknown, ServerState.Suspended });
 
-            Assert.AreEqual(ServerState.REBOOT, _testServer.Status);
+            Assert.AreEqual(ServerState.Reboot, _testServer.Status);
         }
 
         [TestMethod]
@@ -683,9 +692,9 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             Assert.IsTrue(_rebootSuccess); // If the reboot was not successful in the previous test, then fail this one too.
 
-            _testServer.WaitForState(ServerState.HARD_REBOOT, new[] { ServerState.ERROR, ServerState.UNKNOWN, ServerState.SUSPENDED });
+            _testServer.WaitForState(ServerState.HardReboot, new[] { ServerState.Error, ServerState.Unknown, ServerState.Suspended });
 
-            Assert.AreEqual(ServerState.HARD_REBOOT, _testServer.Status);
+            Assert.AreEqual(ServerState.HardReboot, _testServer.Status);
         }
 
         [TestMethod]
@@ -706,7 +715,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             Assert.IsTrue(_rebuildServerSuccess);
 
-            _testServer.WaitForState(ServerState.REBUILD, new[] { ServerState.ERROR, ServerState.UNKNOWN, ServerState.SUSPENDED });
+            _testServer.WaitForState(ServerState.Rebuild, new[] { ServerState.Error, ServerState.Unknown, ServerState.Suspended });
 
             Assert.AreEqual(_preBuildDetails.Id, _testServer.Id);
         }
@@ -718,7 +727,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
 
             _testServer.WaitForActive();
 
-            Assert.AreEqual(ServerState.ACTIVE, _testServer.Status);
+            Assert.AreEqual(ServerState.Active, _testServer.Status);
         }
 
         [TestMethod]
@@ -746,9 +755,9 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             Assert.IsTrue(_resizeSuccess);
 
-            _testServer.WaitForState(ServerState.VERIFY_RESIZE, new[] { ServerState.ERROR, ServerState.UNKNOWN, ServerState.SUSPENDED });
+            _testServer.WaitForState(ServerState.VerifyResize, new[] { ServerState.Error, ServerState.Unknown, ServerState.Suspended });
 
-            Assert.AreEqual(ServerState.VERIFY_RESIZE, _testServer.Status);
+            Assert.AreEqual(ServerState.VerifyResize, _testServer.Status);
         }
 
         [TestMethod]
@@ -781,7 +790,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
 
             _testServer.WaitForActive();
 
-            Assert.AreEqual(ServerState.ACTIVE, _testServer.Status);
+            Assert.AreEqual(ServerState.Active, _testServer.Status);
         }
 
         [Timeout(1800000), TestMethod]
@@ -789,9 +798,9 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             Assert.IsTrue(_confirmResizeSuccess);
 
-            _testServer.WaitForState(ServerState.VERIFY_RESIZE, new[] { ServerState.ERROR, ServerState.UNKNOWN, ServerState.SUSPENDED });
+            _testServer.WaitForState(ServerState.VerifyResize, new[] { ServerState.Error, ServerState.Unknown, ServerState.Suspended });
 
-            Assert.AreEqual(ServerState.VERIFY_RESIZE, _testServer.Status);
+            Assert.AreEqual(ServerState.VerifyResize, _testServer.Status);
         }
 
         [TestMethod]
@@ -811,7 +820,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
 
             _testServer.WaitForActive();
 
-            Assert.AreEqual(ServerState.ACTIVE, _testServer.Status);
+            Assert.AreEqual(ServerState.Active, _testServer.Status);
         }
 
         [TestMethod]
@@ -827,9 +836,9 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             Assert.IsFalse(string.IsNullOrWhiteSpace(_rescueAdminPass));
 
-            _testServer.WaitForState(ServerState.RESCUE, new[] { ServerState.ERROR, ServerState.UNKNOWN, ServerState.SUSPENDED });
+            _testServer.WaitForState(ServerState.Rescue, new[] { ServerState.Error, ServerState.Unknown, ServerState.Suspended });
 
-            Assert.AreEqual(ServerState.RESCUE, _testServer.Status);
+            Assert.AreEqual(ServerState.Rescue, _testServer.Status);
         }
 
         [TestMethod]
@@ -847,7 +856,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
 
             _testServer.WaitForActive();
 
-            Assert.AreEqual(ServerState.ACTIVE, _testServer.Status);
+            Assert.AreEqual(ServerState.Active, _testServer.Status);
         }
 
         #endregion
@@ -857,7 +866,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         [TestMethod]
         public void Should_Attach_Server_Volume()
         {
-            _testVolume = _testServer.AttachVolume("2da9ce90-076e-450a-be3e-c822c9aa73f5");
+            _testVolume = _testServer.AttachVolume("2da9ce90-076e-450a-be3e-c822c9aa73f5", null);
 
             Assert.IsNotNull(_testVolume);
         }

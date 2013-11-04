@@ -68,7 +68,8 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
             var identity = new RackspaceCloudIdentity()
                                {
                                    Username = _testIdentity.Username,
-                                   Password = "bad password"
+                                   Password = "bad password",
+                                   Domain = _testIdentity.Domain,
                                };
             IIdentityProvider serviceProvider = new CloudIdentityProvider(identity);
 
@@ -90,7 +91,8 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
             var identity = new RackspaceCloudIdentity()
                                {
                                    Username = _testIdentity.Username,
-                                   APIKey = "bad api key"
+                                   APIKey = "bad api key",
+                                   Domain = _testIdentity.Domain,
                                };
             IIdentityProvider serviceProvider = new CloudIdentityProvider(identity);
 
@@ -254,7 +256,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             IIdentityProvider provider = new CloudIdentityProvider(_testIdentity);
 
-            var newTestUser = provider.AddUser(new NewUser { Username = "openstacknettestuser1", Email = "newuser@me.com", Enabled = true });
+            var newTestUser = provider.AddUser(new NewUser("openstacknettestuser1", "newuser@me.com", enabled : true));
 
             _newTestUserPassword = newTestUser.Password;
             Assert.IsNotNull(newTestUser);
@@ -296,13 +298,10 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             IIdentityProvider provider = new CloudIdentityProvider(_testIdentity);
 
-            var user = new User
-                           {
-                               Id = _testUser.Id,
-                               Username = "openstacknettestuser12",
-                               Email = "newuser2@me.com",
-                               Enabled = true
-                           };
+            User user = provider.GetUser(_testUser.Id);
+            user.Username = "openstacknettestuser12";
+            user.Email = "newuser2@me.com";
+            user.Enabled = true;
             var updatedUser = provider.UpdateUser(user);
 
             Assert.IsNotNull(updatedUser);
@@ -344,7 +343,7 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             IIdentityProvider provider = new CloudIdentityProvider(_testIdentity);
 
-            var newUser = provider.AddUser(new NewUser { Username = "openstacknettestuser2", Email = "newuser2@me.com", Enabled = true, Password = NewUserPassword });
+            var newUser = provider.AddUser(new NewUser("openstacknettestuser2", "newuser2@me.com", enabled : true, password : NewUserPassword));
             _newTestUserPassword = newUser.Password;
 
             Assert.IsNotNull(newUser);
@@ -373,14 +372,11 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             IIdentityProvider provider = new CloudIdentityProvider(_testIdentity);
 
-            var user = new User
-            {
-                Id = _testUser.Id,
-                Username = "openstacknettestuser32",
-                Email = "newuser32@me.com",
-                Enabled = true,
-                DefaultRegion = "DFW"
-            };
+            User user = provider.GetUser(_testUser.Id);
+            user.Username = "openstacknettestuser32";
+            user.Email = "newuser32@me.com";
+            user.Enabled = true;
+            user.DefaultRegion = "DFW";
             var updatedUser = provider.UpdateUser(user);
 
             Assert.IsNotNull(updatedUser);
@@ -405,13 +401,10 @@ namespace Net.OpenStack.Testing.Integration.Providers.Rackspace
         {
             IIdentityProvider provider = new CloudIdentityProvider(new RackspaceCloudIdentity { Username = _testUser.Username, Password = _newTestUserPassword });
 
-            var user = new User
-            {
-                Id = _testUser.Id,
-                Username = "openstacknettestuser42",
-                Email = "newuser42@me.com",
-                Enabled = true,
-            };
+            User user = provider.GetUser(_testUser.Id);
+            user.Username = "openstacknettestuser42";
+            user.Email = "newuser42@me.com";
+            user.Enabled = true;
             var updatedUser = provider.UpdateUser(user);
 
             Assert.IsNotNull(updatedUser);

@@ -1,29 +1,46 @@
-﻿using System.Runtime.Serialization;
-using net.openstack.Core.Domain;
-
-namespace net.openstack.Providers.Rackspace.Objects.Request
+﻿namespace net.openstack.Providers.Rackspace.Objects.Request
 {
-    [DataContract]
+    using System;
+    using net.openstack.Core.Domain;
+    using Newtonsoft.Json;
+
+    /// <summary>
+    /// This models the JSON request used for the Authenticate request.
+    /// </summary>
+    /// <seealso href="http://docs.openstack.org/api/openstack-identity-service/2.0/content/POST_authenticate_v2.0_tokens_.html">Authenticate (OpenStack Identity Service API v2.0 Reference)</seealso>
+    /// <threadsafety static="true" instance="false"/>
+    [JsonObject(MemberSerialization.OptIn)]
     internal class AuthRequest
     {
-        [DataMember(Name = "auth")]
-        public AuthDetails Credencials { get; set; }
+        /// <summary>
+        /// Gets additional information about the credentials to authenticate.
+        /// </summary>
+        [JsonProperty("auth")]
+        public AuthDetails Credentials { get; private set; }
 
-        public static AuthRequest FromCloudIdentity(CloudIdentity identity)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AuthRequest"/> class with the
+        /// given identity.
+        /// </summary>
+        /// <param name="identity">The identity of the user to authenticate.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="identity"/> is <c>null</c>.</exception>
+        /// <exception cref="NotSupportedException">If given <paramref name="identity"/> type is not supported.</exception>
+        public AuthRequest(CloudIdentity identity)
         {
-            var creds = new AuthDetails();
-            if (string.IsNullOrWhiteSpace(identity.Password))
-                creds.APIKeyCredentials = new Credentials() { Username = identity.Username, APIKey = identity.APIKey};
+            if (identity == null)
+                throw new ArgumentNullException("identity");
+
+            var credentials = new AuthDetails();
+            if (string.IsNullOrEmpty(identity.Password))
+                credentials.APIKeyCredentials = new Credentials(identity.Username, null, identity.APIKey);
             else
-                creds.PasswordCredentials = new Credentials(){Username = identity.Username, Password = identity.Password};
+                credentials.PasswordCredentials = new Credentials(identity.Username, identity.Password, null);
 
             var raxIdentity = identity as RackspaceCloudIdentity;
             if (raxIdentity != null)
-            {
-                creds.Domain = raxIdentity.Domain;
-            }
+                credentials.Domain = raxIdentity.Domain;
 
-            return new AuthRequest { Credencials = creds };
+            Credentials = credentials;
         }
     }
 }

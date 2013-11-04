@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Net;
 using System.Text.RegularExpressions;
 using net.openstack.Core.Domain;
 
@@ -8,6 +9,7 @@ namespace net.openstack.Core
     /// <summary>
     /// A status parser for HTTP status codes.
     /// </summary>
+    /// <threadsafety static="true" instance="false"/>
     public class HttpStatusCodeParser : IStatusParser
     {
         /// <summary>
@@ -75,13 +77,29 @@ namespace net.openstack.Core
             }
         }
 
-        public Status Parse(string value)
+        /// <inheritdoc/>
+        public virtual bool TryParse(string value, out Status result)
         {
+            if (value == null)
+            {
+                result = null;
+                return false;
+            }
+
             var match = _expression.Match(value);
             if (!match.Success)
-                return null;
+            {
+                result = null;
+                return false;
+            }
 
-            return new Status{Code = int.Parse(match.Groups["StatusCode"].Value), Description = match.Groups["Status"].Value};
+            HttpStatusCode statusCode = (HttpStatusCode)int.Parse(match.Groups["StatusCode"].Value);
+            string description = match.Groups["Status"].Value;
+            if (string.IsNullOrEmpty(description))
+                description = statusCode.ToString();
+
+            result = new Status((int)statusCode, description);
+            return true;
         }
     }
 }

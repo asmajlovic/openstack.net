@@ -10,6 +10,7 @@ namespace net.openstack.Core.Exceptions.Response
     /// <see cref="HttpStatusCode.Forbidden"/>, or <see cref="HttpStatusCode.MethodNotAllowed"/>
     /// resulting from a call to a REST API.
     /// </summary>
+    /// <threadsafety static="true" instance="false"/>
     [Serializable]
     public class UserNotAuthorizedException : ResponseException
     {
@@ -31,18 +32,6 @@ namespace net.openstack.Core.Exceptions.Response
         /// <param name="response">The REST response.</param>
         public UserNotAuthorizedException(string message, RestResponse response)
             : base(message, response)
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="UserNotAuthorizedException"/> class with
-        /// serialized data.
-        /// </summary>
-        /// <param name="info">The <see cref="SerializationInfo"/> that holds the serialized object data about the exception being thrown.</param>
-        /// <param name="context">The <see cref="StreamingContext"/> that contains contextual information about the source or destination.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="info"/> is <c>null</c>.</exception>
-        protected UserNotAuthorizedException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
         {
         }
     }

@@ -1,24 +1,46 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Text;
-
-namespace net.openstack.Core.Domain
+﻿namespace net.openstack.Core.Domain
 {
-    [DataContract]
+    using Newtonsoft.Json;
+
+    /// <summary>
+    /// This models the JSON description of a volume attachment.
+    /// </summary>
+    /// <remarks>
+    /// <note>Volume attachments are a Rackspace-specific extension to the OpenStack Compute Service.</note>
+    /// </remarks>
+    /// <seealso href="http://docs.rackspace.com/servers/api/v2/cs-devguide/content/List_Volume_Attachments.html">List Volume Attachments (Rackspace Next Generation Cloud Servers Developer Guide - API v2)</seealso>
+    /// <threadsafety static="true" instance="false"/>
+    [JsonObject(MemberSerialization.OptIn)]
     public class ServerVolume
     {
-        [DataMember(Name ="device")]
-        public string Device { get; set; }
+        /// <summary>
+        /// Gets the "device" property associated with the volume attachment.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("device")]
+        public string Device { get; private set; }
 
-        [DataMember(Name = "serverId")]
-        public string ServerId { get; set; }
+        /// <summary>
+        /// Gets the "serverId" property associated with the volume attachment.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        /// <seealso cref="ServerBase.Id"/>
+        [JsonProperty("serverId")]
+        public string ServerId { get; private set; }
 
-        [DataMember(Name = "id")]
-        public string Id { get; set; }
+        /// <summary>
+        /// Gets the unique identifier for the volume attachment.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("id")]
+        public string Id { get; private set; }
 
-        [DataMember(Name = "volumeId")]
-        public string VolumeId { get; set; }
+        /// <summary>
+        /// Gets the "volumeId" property associated with the volume attachment.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        /// <seealso cref="Volume.Id"/>
+        [JsonProperty("volumeId")]
+        public string VolumeId { get; private set; }
     }
 }

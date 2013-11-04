@@ -1,17 +1,21 @@
 ﻿using System;
 using System.Net;
-using net.openstack.Core;
 using net.openstack.Core.Exceptions;
 using net.openstack.Core.Validators;
 
 namespace net.openstack.Providers.Rackspace.Validators
 {
+    /// <summary>
+    /// Provides an implementation of <see cref="INetworksValidator"/> for
+    /// operation with Rackspace's Cloud Networks product.
+    /// </summary>
+    /// <threadsafety static="true" instance="false"/>
     public class CloudNetworksValidator : INetworksValidator
     {
         /// <summary>
         /// A default instance of <see cref="CloudNetworksValidator"/>.
         /// </summary>
-        private static readonly CloudNetworksValidator _default;
+        private static readonly CloudNetworksValidator _default = new CloudNetworksValidator();
 
         /// <summary>
         /// Gets a default instance of <see cref="CloudNetworksValidator"/>.

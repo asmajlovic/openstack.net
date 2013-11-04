@@ -1,24 +1,43 @@
-using System.Runtime.Serialization;
-
 namespace net.openstack.Core.Domain
 {
-    [DataContract]
+    using net.openstack.Core.Providers;
+    using Newtonsoft.Json;
+
+    /// <summary>
+    /// Contains detailed information about a flavor.
+    /// </summary>
+    /// <seealso cref="IComputeProvider.ListFlavorsWithDetails"/>
+    /// <seealso cref="IComputeProvider.GetFlavor"/>
+    /// <threadsafety static="true" instance="false"/>
+    [JsonObject(MemberSerialization.OptIn)]
     public class FlavorDetails : Flavor
     {
-        [DataMember(Name ="OS-FLV-DISABLED:disabled")]
-        public bool Disabled { get; set; }
+        /// <summary>
+        /// Gets the "OS-FLV-DISABLED:disabled" property associated with the flavor.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("OS-FLV-DISABLED:disabled")]
+        public bool Disabled { get; private set; }
 
-        [DataMember(Name ="disk")] 
-        public int DiskSizeInGB { get; set; }
+        /// <summary>
+        /// Gets the "disk" property associated with the flavor.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("disk")] 
+        public int DiskSizeInGB { get; private set; }
 
-        [DataMember(Name = "ram")]
-        public int RAMInMB { get; set; }
+        /// <summary>
+        /// Gets the "ram" property associated with the flavor.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("ram")]
+        public int RAMInMB { get; private set; }
 
-        //"rxtx_factor": 2.0,
- 
-        //"swap": 512, 
-
-        [DataMember(Name ="vcpus")]
-        public int VirtualCPUCount { get; set; }
+        /// <summary>
+        /// Gets the "vcpus" property associated with the flavor.
+        /// <note type="warning">The value of this property is not defined. Do not use.</note>
+        /// </summary>
+        [JsonProperty("vcpus")]
+        public int VirtualCPUCount { get; private set; }
     }
 }

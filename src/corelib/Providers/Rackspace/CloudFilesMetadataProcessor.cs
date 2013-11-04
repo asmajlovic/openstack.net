@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using JSIStudios.SimpleRESTServices.Client;
 using net.openstack.Core;
 
@@ -39,43 +40,51 @@ namespace net.openstack.Providers.Rackspace
         /// <para>The value for <see cref="CloudFilesProvider.ProcessedHeadersHeaderKey"/> contains the
         /// HTTP headers which were not in the form of a known Cloud Files metadata prefix.</para>
         /// </remarks>
-        /// <param name="httpHeaders">The collection of HTTP headers.</param>
-        /// <returns>The metadata.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="httpHeaders"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException">If <paramref name="httpHeaders"/> contains two headers with equivalent values for <see cref="HttpHeader.Key"/> (case-insensitive).</exception>
+        /// <inheritdoc/>
         public virtual Dictionary<string, Dictionary<string, string>> ProcessMetadata(IList<HttpHeader> httpHeaders)
         {
             if (httpHeaders == null)
                 throw new ArgumentNullException("httpHeaders");
 
-            var pheaders = new Dictionary<string, string>();
-            var metadata = new Dictionary<string, string>();
+            var pheaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in httpHeaders)
             {
-                if (header.Key.ToLower().Contains(CloudFilesProvider.AccountMetaDataPrefix))
+                if (header == null)
+                    throw new ArgumentException("httpHeaders cannot contain any null values");
+                if (string.IsNullOrEmpty(header.Key))
+                    throw new ArgumentException("httpHeaders cannot contain any values with a null or empty key");
+
+                if (header.Key.StartsWith(CloudFilesProvider.AccountMetaDataPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    metadata.Add(header.Key.Remove(0, 15), header.Value);
+                    metadata.Add(header.Key.Substring(CloudFilesProvider.AccountMetaDataPrefix.Length), DecodeUnicodeValue(header.Value));
                 }
-                else if (header.Key.ToLower().Contains(CloudFilesProvider.ContainerMetaDataPrefix))
+                else if (header.Key.StartsWith(CloudFilesProvider.ContainerMetaDataPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    metadata.Add(header.Key.Remove(0, 17), header.Value);
+                    metadata.Add(header.Key.Substring(CloudFilesProvider.ContainerMetaDataPrefix.Length), DecodeUnicodeValue(header.Value));
                 }
-                else if (header.Key.ToLower().Contains(CloudFilesProvider.ObjectMetaDataPrefix))
+                else if (header.Key.StartsWith(CloudFilesProvider.ObjectMetaDataPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    metadata.Add(header.Key.Remove(0, 14), header.Value);
+                    metadata.Add(header.Key.Substring(CloudFilesProvider.ObjectMetaDataPrefix.Length), DecodeUnicodeValue(header.Value));
                 }
                 else
                 {
-                    pheaders.Add(header.Key.ToLower(), header.Value);
+                    pheaders.Add(header.Key, header.Value);
                 }
             }
-            var processedHeaders = new Dictionary<string, Dictionary<string, string>>()
+
+            var processedHeaders = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
                 {
                     {CloudFilesProvider.ProcessedHeadersHeaderKey, pheaders},
                     {CloudFilesProvider.ProcessedHeadersMetadataKey, metadata}
                 };
 
             return processedHeaders;
+        }
+
+        private string DecodeUnicodeValue(string value)
+        {
+            return Encoding.UTF8.GetString(Encoding.GetEncoding("ISO-8859-1").GetBytes(value));
         }
     }
 }

@@ -1,20 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-namespace net.openstack.Core.Domain
+﻿namespace net.openstack.Core.Domain
 {
+    using net.openstack.Core.Providers;
+
+    /// <summary>
+    /// Represents the result of various Object Storage operations.
+    /// </summary>
+    /// <seealso cref="IObjectStorageProvider"/>
     public enum ObjectStore
     {
-        Unknown,
+        /// <summary>
+        /// The container was created.
+        /// </summary>
+        /// <seealso cref="IObjectStorageProvider.CreateContainer"/>
         ContainerCreated,
+
+        /// <summary>
+        /// The container already exists.
+        /// </summary>
+        /// <seealso cref="IObjectStorageProvider.CreateContainer"/>
         ContainerExists,
-        ContainerDeleted,
-        ContainerNotEmpty,
-        ContainerNotFound,
-        ObjectDeleted,
-        ObjectCreated,
-        ObjectPurged
     }
 }

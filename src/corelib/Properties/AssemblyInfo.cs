@@ -22,19 +22,11 @@ using System.Runtime.InteropServices;
 // The following GUID is for the ID of the typelib if this project is exposed to COM
 [assembly: Guid("22d9e69a-659a-4699-826f-18ec39657748")]
 
-// Version information for an assembly consists of the following four values:
-//
-//      Major Version
-//      Minor Version 
-//      Build Number
-//      Revision
-//
-// You can specify all the values or you can default the Build and Revision Numbers 
-// by using the '*' as shown below:
-// [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.1.2.1")]
-[assembly: AssemblyFileVersion("1.1.2.1")]
+// Refer to the following issue before changing these version numbers:
+// https://github.com/JSIStudios/SimpleRestServices/issues/53
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.1.0")]
+[assembly: AssemblyInformationalVersion("1.3.1.0-dev")]
 
-[assembly: InternalsVisibleTo("OpenStackNet.Testing.Integration")]
-[assembly: InternalsVisibleTo("OpenStackNet.Testing.Unit")]
-[assembly: InternalsVisibleTo("net.openstack.console")]
+[assembly: InternalsVisibleTo("OpenStackNet.Testing.Integration, PublicKey=002400000480000094000000060200000024000052534131000400000100010097de8570a3c78aa87191a604e55b95acf1a5075a317d622ab84287f8267b45755a46894b653c8b72d6d38815d2fa2dde8ba5d61c26ce8d5f398dc74ac3eb945fe1c3447753bdf4a3bfc1de3a489c4b5fb82f4cdc67681efffbd627ceca15531f638db991a702d7b8ad6825b51a151db543bad746a157b59ef325e0f44fe1bed1")]
+[assembly: InternalsVisibleTo("OpenStackNet.Testing.Unit, PublicKey=002400000480000094000000060200000024000052534131000400000100010097de8570a3c78aa87191a604e55b95acf1a5075a317d622ab84287f8267b45755a46894b653c8b72d6d38815d2fa2dde8ba5d61c26ce8d5f398dc74ac3eb945fe1c3447753bdf4a3bfc1de3a489c4b5fb82f4cdc67681efffbd627ceca15531f638db991a702d7b8ad6825b51a151db543bad746a157b59ef325e0f44fe1bed1")]

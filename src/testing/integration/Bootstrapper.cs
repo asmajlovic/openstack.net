@@ -55,8 +55,7 @@ namespace Net.OpenStack.Testing.Integration
 
         public ExtendedCloudIdentity TestDomainIdentity { get; set; }
 
-        public string RackspaceExtendedIdentityUSUrl { get; set; }
-        public string RackspaceExtendedIdentityUKUrl { get; set; }
+        public string RackspaceExtendedIdentityUrl { get; set; }
     }
 
     public class ExtendedCloudIdentity : CloudIdentity
@@ -76,7 +75,7 @@ namespace Net.OpenStack.Testing.Integration
             this.Password = cloudIdentity.Password;
             this.Username = cloudIdentity.Username;
             this.TenantId = cloudIdentity.TenantId;
-            this.Domain = string.IsNullOrWhiteSpace(cloudIdentity.Domain) ? null : new Domain {Name = cloudIdentity.Domain};
+            this.Domain = string.IsNullOrEmpty(cloudIdentity.Domain) ? null : new Domain(cloudIdentity.Domain);
         }
     }
 }
