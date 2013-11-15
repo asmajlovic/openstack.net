@@ -11,9 +11,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Net.OpenStack.Testing.Integration</RootNamespace>
     <AssemblyName>OpenStackNet.Testing.Integration</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -23,6 +24,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -31,6 +33,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <SignAssembly>true</SignAssembly>
@@ -39,6 +42,9 @@
     <AssemblyOriginatorKeyFile>..\SDKTestingKey.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\..\packages\SharpZipLib.0.86.0\lib\20\ICSharpCode.SharpZipLib.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Moq">
       <HintPath>..\..\packages\Moq.4.0.10827\lib\NET40\Moq.dll</HintPath>
@@ -46,6 +52,9 @@
     <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\packages\Newtonsoft.Json.5.0.6\lib\net40\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Security.Cryptography">
+      <HintPath>..\..\lib\Security.Cryptography\Security.Cryptography.dll</HintPath>
     </Reference>
     <Reference Include="SimpleRESTServices, Version=1.3.0.0, Culture=neutral, PublicKeyToken=8965cea5c205d3a3, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -56,6 +65,8 @@
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
+    <Reference Include="System.Net" />
+    <Reference Include="System.ServiceModel" />
   </ItemGroup>
   <ItemGroup>
     <CodeAnalysisDependentAssemblyPaths Condition=" '$(VS100COMNTOOLS)' != '' " Include="$(VS100COMNTOOLS)..\IDE\PrivateAssemblies">
@@ -68,15 +79,19 @@
     <Compile Include="Providers\Rackspace\CloudNetworksTests.cs" />
     <Compile Include="Providers\Rackspace\CloudServersTests.cs" />
     <Compile Include="Providers\Rackspace\CloudBlockStorageTests.cs" />
+    <Compile Include="Providers\Rackspace\UserQueuesTestsSynchronous.cs" />
     <Compile Include="Providers\Rackspace\IdentityTests.cs" />
     <Compile Include="Providers\Rackspace\ExtendedIdentityTests.cs" />
     <Compile Include="Providers\Rackspace\CloudFilesTests.cs" />
     <Compile Include="Providers\Rackspace\TestCategories.cs" />
     <Compile Include="Providers\Rackspace\UserBlockStorageTests.cs" />
     <Compile Include="Providers\Rackspace\UserComputeTests.cs" />
+    <Compile Include="Providers\Rackspace\UserDnsTests.cs" />
     <Compile Include="Providers\Rackspace\UserIdentityTests.cs" />
+    <Compile Include="Providers\Rackspace\UserLoadBalancerTests.cs" />
     <Compile Include="Providers\Rackspace\UserNetworksTests.cs" />
     <Compile Include="Providers\Rackspace\UserObjectStorageTests.cs" />
+    <Compile Include="Providers\Rackspace\UserQueuesTests.cs" />
     <Compile Include="Providers\Rackspace\UserServerTests.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -329,9 +329,19 @@ namespace net.openstack.Providers.Rackspace
 
             var serverDetails = GetDetails(serverId, region, identity);
 
+            /*
+             * The polling implementation uses triple-checked polling to work around a known bug in Cloud
+             * Servers status reporting. Occasionally, for a brief period of time during an asynchronous
+             * server operation, the service will return incorrect values in all of the status fields.
+             * Polling multiple times allows this SDK to provide reliable wait operations even when the
+             * server returns unreliable values.
+             */
+
+            Func<bool> exitCondition = () => serverDetails.TaskState == null && (expectedStates.Contains(serverDetails.Status) || errorStates.Contains(serverDetails.Status));
             int count = 0;
             int currentProgress = -1;
-            while (!expectedStates.Contains(serverDetails.Status) && !errorStates.Contains(serverDetails.Status) && count < refreshCount)
+            int exitCount = exitCondition() ? 1 : 0;
+            while (exitCount < 3 && count < refreshCount)
             {
                 if (progressUpdatedCallback != null)
                 {
@@ -345,6 +355,10 @@ namespace net.openstack.Providers.Rackspace
                 Thread.Sleep(refreshDelay ?? TimeSpan.FromMilliseconds(2400));
                 serverDetails = GetDetails(serverId, region, identity);
                 count++;
+                if (exitCondition())
+                    exitCount++;
+                else
+                    exitCount = 0;
             }
 
             if (errorStates.Contains(serverDetails.Status))
@@ -431,11 +445,49 @@ namespace net.openstack.Providers.Rackspace
 
             var urlPath = new Uri(string.Format("{0}/servers/{1}/ips/{2}", GetServiceEndpoint(identity, region), serverId, network));
 
-            var response = ExecuteRESTRequest<ServerAddresses>(identity, urlPath, HttpMethod.GET);
-            if (response == null || response.Data == null)
-                return null;
+            try
+            {
+                var response = ExecuteRESTRequest<ServerAddresses>(identity, urlPath, HttpMethod.GET);
+                if (response == null || response.Data == null)
+                    return null;
 
-            return response.Data[network];
+                return response.Data[network];
+            }
+            catch (ItemNotFoundException)
+            {
+                // if the specified server and network exist separately, then the 404 was only caused by server
+                // not being connected to the particular network
+                // https://github.com/openstacknetsdk/openstack.net/issues/176
+                bool foundServer = false;
+                try
+                {
+                    Server details = GetDetails(serverId);
+                    foundServer = details != null;
+                }
+                catch (ResponseException)
+                {
+                }
+
+                if (!foundServer)
+                    throw;
+
+                bool foundNetwork = false;
+                try
+                {
+                    INetworksProvider networksProvider = new CloudNetworksProvider(DefaultIdentity, DefaultRegion, IdentityProvider, RestService);
+                    IEnumerable<CloudNetwork> networks = networksProvider.ListNetworks(region, identity);
+                    if (networks != null && networks.Any(i => network.Equals(i.Label, StringComparison.OrdinalIgnoreCase)))
+                        foundNetwork = true;
+                }
+                catch (ResponseException)
+                {
+                }
+
+                if (!foundNetwork)
+                    throw;
+
+                return Enumerable.Empty<IPAddress>();
+            }
         }
 
         #endregion
