@@ -14,6 +14,8 @@
     <FileAlignment>512</FileAlignment>
     <BaseIntermediateOutputPath>obj\v3.5\</BaseIntermediateOutputPath>
     <TargetFrameworkProfile />
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -56,13 +58,16 @@
     <Reference Include="System.Threading">
       <HintPath>..\packages\TaskParallelLibrary.1.0.2856.0\lib\Net35\System.Threading.dll</HintPath>
     </Reference>
-    <Reference Include="System.Web" />
+    <Reference Include="System.Web">
+      <Aliases>web</Aliases>
+    </Reference>
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Core\AsyncCompletionOption.cs" />
     <Compile Include="Core\Caching\ICache`1.cs" />
     <Compile Include="Core\Caching\NamespaceDoc.cs" />
+    <Compile Include="Core\Collections\ReadOnlyDictionary`2.cs" />
     <Compile Include="Core\Compat\Funcs.cs" />
     <Compile Include="Core\Compat\ISafeSerializationData.cs" />
     <Compile Include="Core\Compat\IStructuralComparable.cs" />
@@ -81,6 +86,7 @@
     <Compile Include="Core\Domain\ImageState.cs" />
     <Compile Include="Core\Domain\IPAddressList.cs" />
     <Compile Include="Core\Domain\PowerState.cs" />
+    <Compile Include="Core\Domain\ProjectId.cs" />
     <Compile Include="Core\Domain\Queues\Claim.cs" />
     <Compile Include="Core\Domain\Queues\ClaimId.cs" />
     <Compile Include="Core\Domain\Queues\CloudQueue.cs" />
@@ -143,12 +149,16 @@
     <Compile Include="Core\ResourceIdentifier`1.cs" />
     <Compile Include="Core\ResponseExtensions.cs" />
     <Compile Include="Core\RestWebHeaderCollection.cs" />
+    <Compile Include="Core\Synchronous\DatabaseServiceExtensions.cs" />
     <Compile Include="Core\Synchronous\DnsServiceExtensions.cs" />
     <Compile Include="Core\Synchronous\ClaimExtensions.cs" />
     <Compile Include="Core\Synchronous\NamespaceDoc.cs" />
     <Compile Include="Core\Synchronous\QueueingServiceExtensions.cs" />
+    <Compile Include="Core\UriPart.cs" />
+    <Compile Include="Core\UriUtility.cs" />
     <Compile Include="Core\Validators\NamespaceDoc.cs" />
     <Compile Include="Core\WebRequestExtensions.cs" />
+    <Compile Include="Providers\Rackspace\CloudDatabasesProvider.cs" />
     <Compile Include="Providers\Rackspace\CloudDnsProvider.cs" />
     <Compile Include="Providers\Rackspace\CloudLoadBalancerProvider.cs" />
     <Compile Include="Providers\Rackspace\CloudQueuesProvider.cs" />
@@ -195,6 +205,7 @@
     <Compile Include="Core\Exceptions\NoDefaultRegionSetException.cs" />
     <Compile Include="Core\Exceptions\ServerEnteredErrorStateException.cs" />
     <Compile Include="Providers\Rackspace\Exceptions\NamespaceDoc.cs" />
+    <Compile Include="Providers\Rackspace\IDatabaseService.cs" />
     <Compile Include="Providers\Rackspace\IDnsService.cs" />
     <Compile Include="Providers\Rackspace\ILoadBalancerService.cs" />
     <Compile Include="Providers\Rackspace\NamespaceDoc.cs" />
@@ -202,6 +213,28 @@
     <Compile Include="Core\Domain\AuthenticationType.cs" />
     <Compile Include="Providers\Rackspace\Objects\BulkDeletionFailedObject.cs" />
     <Compile Include="Providers\Rackspace\Objects\BulkDeletionResults.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\Backup.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\BackupConfiguration.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\BackupId.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\BackupStatus.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\Database.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseConfiguration.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseFlavor.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseInstance.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseInstanceConfiguration.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseInstanceId.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseInstanceStatus.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseName.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseUser.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\DatabaseVolumeConfiguration.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\FlavorId.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\FlavorRef.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\NamespaceDoc.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\RestorePoint.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\RootUser.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\UpdateUserConfiguration.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\UserConfiguration.cs" />
+    <Compile Include="Providers\Rackspace\Objects\Databases\UserName.cs" />
     <Compile Include="Providers\Rackspace\Objects\Dns\DnsChange.cs" />
     <Compile Include="Providers\Rackspace\Objects\Dns\DnsConfiguration.cs" />
     <Compile Include="Providers\Rackspace\Objects\Dns\DnsDomain.cs" />
@@ -445,6 +478,7 @@
     <None Include="Icons\openstack_net_logo.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

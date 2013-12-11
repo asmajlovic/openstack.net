@@ -629,9 +629,9 @@ namespace net.openstack.Providers.Rackspace
 
             var metadata = new Dictionary<string, string>
                                 {
-                                    {WebIndex, index},
-                                    {WebError, error},
-                                    {WebListingsCSS, css},
+                                    {WebIndex, UriUtility.UriEncode(index, UriPart.AnyUrl, Encoding.UTF8)},
+                                    {WebError, UriUtility.UriEncode(error, UriPart.AnyUrl, Encoding.UTF8)},
+                                    {WebListingsCSS, UriUtility.UriEncode(css, UriPart.AnyUrl, Encoding.UTF8)},
                                     {WebListings, listing.ToString()}
                                 };
             UpdateContainerMetadata(container, metadata, region, useInternalUrl, identity);
@@ -661,8 +661,8 @@ namespace net.openstack.Providers.Rackspace
 
             var headers = new Dictionary<string, string>
                                   {
-                                      {WebIndex, index},
-                                      {WebError, error},
+                                      {WebIndex, UriUtility.UriEncode(index, UriPart.AnyUrl, Encoding.UTF8)},
+                                      {WebError, UriUtility.UriEncode(error, UriPart.AnyUrl, Encoding.UTF8)},
                                       {WebListings, listing.ToString()}
                                   };
             UpdateContainerMetadata(container, headers, region, useInternalUrl, identity);
@@ -687,7 +687,7 @@ namespace net.openstack.Providers.Rackspace
 
             var headers = new Dictionary<string, string>
                                 {
-                                    {WebListingsCSS, css},
+                                    {WebListingsCSS, UriUtility.UriEncode(css, UriPart.AnyUrl, Encoding.UTF8)},
                                     {WebListings, listing.ToString()}
                                 };
             UpdateContainerMetadata(container, headers, region, useInternalUrl, identity);
@@ -717,8 +717,8 @@ namespace net.openstack.Providers.Rackspace
 
             var headers = new Dictionary<string, string>
                                   {
-                                      {WebIndex, index},
-                                      {WebError, error}
+                                      {WebIndex, UriUtility.UriEncode(index, UriPart.AnyUrl, Encoding.UTF8)},
+                                      {WebError, UriUtility.UriEncode(error, UriPart.AnyUrl, Encoding.UTF8)}
                                   };
             UpdateContainerMetadata(container, headers, region, useInternalUrl, identity);
         }
@@ -1018,6 +1018,25 @@ namespace net.openstack.Providers.Rackspace
                 outputStream.Flush(); // flush the contents of the stream to the output device
                 outputStream.Position = 0;  // reset the head of the stream to the beginning
 
+                string objectManifest;
+                if (response.TryGetHeader(ObjectManifest, out objectManifest) && !string.IsNullOrEmpty(objectManifest))
+                {
+                    throw new NotSupportedException("ETag validation for dynamic large objects is not yet supported.");
+                }
+                else
+                {
+                    string staticLargeObject;
+                    if (response.TryGetHeader(StaticLargeObject, out staticLargeObject) && string.Equals(bool.TrueString, staticLargeObject, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new NotSupportedException("ETag validation for static large objects is not yet supported.");
+                    }
+                }
+
+                bool weakETag = etag.StartsWith("W/", StringComparison.Ordinal);
+                if (weakETag)
+                    etag = etag.Substring("W/".Length);
+
+                etag = etag.Trim('"');
                 using (var md5 = MD5.Create())
                 {
                     md5.ComputeHash(outputStream);
@@ -1026,7 +1045,7 @@ namespace net.openstack.Providers.Rackspace
                     var hash = md5.Hash;
                     foreach (var b in hash)
                     {
-                        sbuilder.Append(b.ToString("x2").ToLower());
+                        sbuilder.Append(b.ToString("x2"));
                     }
                     var convertedMd5 = sbuilder.ToString();
                     if (!string.Equals(convertedMd5, etag, StringComparison.OrdinalIgnoreCase))
@@ -1107,7 +1126,7 @@ namespace net.openstack.Providers.Rackspace
             if (headers == null)
                 headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            headers.Add(Destination, string.Format("{0}/{1}", destinationContainer, destinationObjectName));
+            headers.Add(Destination, string.Format("{0}/{1}", UriUtility.UriEncode(destinationContainer, UriPart.AnyUrl, Encoding.UTF8), UriUtility.UriEncode(destinationObjectName, UriPart.AnyUrl, Encoding.UTF8)));
 
             RequestSettings settings = BuildDefaultRequestSettings();
             if (destinationContentType != null)
@@ -1408,7 +1427,7 @@ namespace net.openstack.Providers.Rackspace
             Uri baseAddress = new Uri(GetServiceEndpointCloudFiles(identity, region, useInternalUrl));
             Dictionary<string, string> parameters = new Dictionary<string, string> { { "archiveFormat", archiveFormat.ToString() } };
             if (!string.IsNullOrEmpty(uploadPath))
-                parameters.Add("uploadPath", uploadPath);
+                parameters.Add("uploadPath", UriUtility.UriEncode(uploadPath, UriPart.AnyUrl, Encoding.UTF8));
 
             Uri urlPath = template.BindByName(baseAddress, parameters);
 
@@ -1701,7 +1720,7 @@ namespace net.openstack.Providers.Rackspace
                 // the size of the current segment
                 long length = Math.Min(remaining, LargeFileBatchThreshold);
 
-                Uri urlPath = new Uri(string.Format("{0}/{1}/{2}.seg{3}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), container, objectName, i.ToString("0000")));
+                Uri urlPath = new Uri(string.Format("{0}/{1}/{2}.seg{3}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), UriUtility.UriEncode(container, UriPart.AnyUrl, Encoding.UTF8), UriUtility.UriEncode(objectName, UriPart.AnyUrl, Encoding.UTF8), i.ToString("0000")));
                 long segmentBytesWritten = 0;
 
                 RequestSettings settings = BuildDefaultRequestSettings();
@@ -1722,12 +1741,13 @@ namespace net.openstack.Providers.Rackspace
             }
 
             // upload the manifest file
-            Uri segmentUrlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), container, objectName));
+            Uri segmentUrlPath = new Uri(string.Format("{0}/{1}/{2}", GetServiceEndpointCloudFiles(identity, region, useInternalUrl), UriUtility.UriEncode(container, UriPart.AnyUrl, Encoding.UTF8), UriUtility.UriEncode(objectName, UriPart.AnyUrl, Encoding.UTF8)));
+            string objectManifestValue = string.Format("{0}.seg", objectName);
 
             if (headers == null)
                 headers = new Dictionary<string, string>();
 
-            headers.Add(ObjectManifest, string.Format("{0}/{1}", container, objectName));
+            headers.Add(ObjectManifest, string.Format("{0}/{1}", UriUtility.UriEncode(container, UriPart.Any, Encoding.UTF8), UriUtility.UriEncode(objectManifestValue, UriPart.Any, Encoding.UTF8)));
 
             RequestSettings requestSettings = BuildDefaultRequestSettings();
             requestSettings.ChunkRequest = true;
@@ -2096,10 +2116,18 @@ namespace net.openstack.Providers.Rackspace
 
         /// <summary>
         /// The X-Object-Manifest header, which specifies the container and prefix for the segments of a
+        /// dynamic large object.
+        /// </summary>
+        /// <seealso href="http://docs.openstack.org/api/openstack-object-storage/1.0/content/dynamic-large-object-creation.html">Dynamic Large Objects (OpenStack Object Storage API v1 Reference)</seealso>
+        public const string ObjectManifest = "x-object-manifest";
+
+        /// <summary>
+        /// The X-Static-Large-Object header, which specifies whether an object is a manifest for a static
         /// large object.
         /// </summary>
-        /// <seealso href="http://docs.openstack.org/api/openstack-object-storage/1.0/content/large-object-creation.html">Create Large Objects (OpenStack Object Storage API v1 Reference)</seealso>
-        public const string ObjectManifest = "x-object-manifest";
+        /// <seealso href="http://docs.openstack.org/api/openstack-object-storage/1.0/content/static-large-objects.html">Static Large Objects (OpenStack Object Storage API v1 Reference)</seealso>
+        /// <preliminary/>
+        public const string StaticLargeObject = "x-static-large-object";
 
         #endregion
 
