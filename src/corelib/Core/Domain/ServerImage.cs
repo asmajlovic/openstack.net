@@ -146,9 +146,9 @@ namespace net.openstack.Core.Domain
         /// Sets the metadata associated with the specified image, replacing any existing metadata.
         /// </summary>
         /// <param name="metadata">The metadata to associate with the image.</param>
-        /// <returns><c>true</c> if the metadata for the image was successfully updated; otherwise, <c>false</c>.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains any values with null or empty keys.</exception>
+        /// <returns><see langword="true"/> if the metadata for the image was successfully updated; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains any values with empty keys.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>
         /// <seealso cref="IComputeProvider.SetImageMetadata"/>
         /// <seealso href="http://docs.openstack.org/api/openstack-compute/2/content/Create_or_Replace_Metadata-d1e5358.html">Set Metadata (OpenStack Compute API v2 and Extensions Reference)</seealso>
@@ -167,9 +167,9 @@ namespace net.openstack.Core.Domain
         /// For each item in <paramref name="metadata"/>, if the key exists, the value is updated; otherwise, the item is added.
         /// </remarks>
         /// <param name="metadata">The image metadata to update.</param>
-        /// <returns><c>true</c> if the metadata for the image was successfully updated; otherwise, <c>false</c>.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains any values with null or empty keys.</exception>
+        /// <returns><see langword="true"/> if the metadata for the image was successfully updated; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains any values with empty keys.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>
         /// <seealso cref="IComputeProvider.UpdateImageMetadata"/>
         /// <seealso href="http://docs.openstack.org/api/openstack-compute/2/content/Update_Metadata-d1e5208.html">Update Metadata (OpenStack Compute API v2 and Extensions Reference)</seealso>
@@ -186,11 +186,11 @@ namespace net.openstack.Core.Domain
         /// </summary>
         /// <param name="key">The metadata key.</param>
         /// <param name="value">The new value for the metadata item.</param>
-        /// <returns><c>true</c> if the metadata for the image was successfully updated; otherwise, <c>false</c>.</returns>
+        /// <returns><see langword="true"/> if the metadata for the image was successfully updated; otherwise, <see langword="false"/>.</returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="key"/> is <c>null</c>.
+        /// If <paramref name="key"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="value"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="value"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">If <paramref name="key"/> is empty.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>
@@ -215,9 +215,9 @@ namespace net.openstack.Core.Domain
         /// For each item in <paramref name="metadata"/>, if the key exists, the value is updated; otherwise, the item is added.
         /// </remarks>
         /// <param name="metadata">The image metadata to update.</param>
-        /// <returns><c>true</c> if the metadata for the image was successfully updated; otherwise, <c>false</c>.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains any values with null or empty keys.</exception>
+        /// <returns><see langword="true"/> if the metadata for the image was successfully updated; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains any values with empty keys.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>
         /// <seealso cref="IComputeProvider.UpdateImageMetadata"/>
         /// <seealso href="http://docs.openstack.org/api/openstack-compute/2/content/Update_Metadata-d1e5208.html">Update Metadata (OpenStack Compute API v2 and Extensions Reference)</seealso>
@@ -239,8 +239,8 @@ namespace net.openstack.Core.Domain
         /// </note>
         /// </remarks>
         /// <param name="metadata">A collection of metadata items to delete.</param>
-        /// <returns><c>true</c> if all of the metadata item were removed; otherwise, <c>false</c>.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <c>null</c>.</exception>
+        /// <returns><see langword="true"/> if all of the metadata item were removed; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="metadata"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentException">If <paramref name="metadata"/> contains a null or empty key.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>
         /// <seealso cref="IComputeProvider.DeleteImageMetadataItem"/>
@@ -254,7 +254,7 @@ namespace net.openstack.Core.Domain
             foreach (var item in metadata)
             {
                 if (string.IsNullOrEmpty(item.Key))
-                    throw new ArgumentException("metadata cannot contain any null or empty keys");
+                    throw new ArgumentException("metadata cannot contain any empty keys");
 
                 success &= DeleteMetadataItem(item.Key);
             }
@@ -266,8 +266,8 @@ namespace net.openstack.Core.Domain
         /// Deletes the specified metadata item from the image.
         /// </summary>
         /// <param name="key">The metadata key.</param>
-        /// <returns><c>true</c> if the metadata item was removed; otherwise, <c>false</c>.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="key"/> is <c>null</c>.</exception>
+        /// <returns><see langword="true"/> if the metadata item was removed; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="key"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentException">If <paramref name="key"/> is empty.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>
         /// <seealso cref="IComputeProvider.DeleteImageMetadataItem"/>
@@ -287,11 +287,11 @@ namespace net.openstack.Core.Domain
         /// </summary>
         /// <param name="key">The metadata key.</param>
         /// <param name="value">The new value for the metadata item.</param>
-        /// <returns><c>true</c> if the metadata for the image was successfully updated; otherwise, <c>false</c>.</returns>
+        /// <returns><see langword="true"/> if the metadata for the image was successfully updated; otherwise, <see langword="false"/>.</returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="key"/> is <c>null</c>.
+        /// If <paramref name="key"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="value"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="value"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">If <paramref name="key"/> is empty.</exception>
         /// <exception cref="ResponseException">If the REST API request failed.</exception>

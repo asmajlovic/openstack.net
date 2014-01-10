@@ -2,14 +2,17 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Net;
     using System.Threading.Tasks;
     using net.openstack.Core;
+    using net.openstack.Core.Collections;
     using net.openstack.Core.Domain;
     using net.openstack.Core.Providers;
     using net.openstack.Providers.Rackspace.Objects.Databases;
     using Newtonsoft.Json.Linq;
     using CancellationToken = System.Threading.CancellationToken;
+    using FlavorId = net.openstack.Providers.Rackspace.Objects.Databases.FlavorId;
     using HttpMethod = JSIStudios.SimpleRESTServices.Client.HttpMethod;
     using HttpResponseCodeValidator = net.openstack.Providers.Rackspace.Validators.HttpResponseCodeValidator;
     using IHttpResponseCodeValidator = net.openstack.Core.Validators.IHttpResponseCodeValidator;
@@ -35,9 +38,9 @@
         /// Initializes a new instance of the <see cref="CloudDatabasesProvider"/> class with
         /// the specified values.
         /// </summary>
-        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <c>null</c>, no default identity is available so all calls must specify an explicit identity.</param>
-        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <c>null</c>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
-        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <c>null</c>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
+        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <see langword="null"/>, no default identity is available so all calls must specify an explicit identity.</param>
+        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <see langword="null"/>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
+        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <see langword="null"/>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
         public CloudDatabasesProvider(CloudIdentity defaultIdentity, string defaultRegion, IIdentityProvider identityProvider)
             : base(defaultIdentity, defaultRegion, identityProvider, null, null)
         {
@@ -47,11 +50,11 @@
         /// Initializes a new instance of the <see cref="CloudDatabasesProvider"/> class with
         /// the specified values.
         /// </summary>
-        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <c>null</c>, no default identity is available so all calls must specify an explicit identity.</param>
-        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <c>null</c>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
-        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <c>null</c>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
-        /// <param name="restService">The implementation of <see cref="IRestService"/> to use for executing synchronous REST requests. If this value is <c>null</c>, the provider will use a new instance of <see cref="JsonRestServices"/>.</param>
-        /// <param name="httpStatusCodeValidator">The HTTP status code validator to use for synchronous REST requests. If this value is <c>null</c>, the provider will use <see cref="HttpResponseCodeValidator.Default"/>.</param>
+        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <see langword="null"/>, no default identity is available so all calls must specify an explicit identity.</param>
+        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <see langword="null"/>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
+        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <see langword="null"/>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
+        /// <param name="restService">The implementation of <see cref="IRestService"/> to use for executing synchronous REST requests. If this value is <see langword="null"/>, the provider will use a new instance of <see cref="JsonRestServices"/>.</param>
+        /// <param name="httpStatusCodeValidator">The HTTP status code validator to use for synchronous REST requests. If this value is <see langword="null"/>, the provider will use <see cref="HttpResponseCodeValidator.Default"/>.</param>
         protected CloudDatabasesProvider(CloudIdentity defaultIdentity, string defaultRegion, IIdentityProvider identityProvider, IRestService restService, IHttpResponseCodeValidator httpStatusCodeValidator)
             : base(defaultIdentity, defaultRegion, identityProvider, restService, httpStatusCodeValidator)
         {
@@ -109,7 +112,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<DatabaseInstance[]> ListDatabaseInstancesAsync(DatabaseInstanceId marker, int? limit, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollectionPage<DatabaseInstance>> ListDatabaseInstancesAsync(DatabaseInstanceId marker, int? limit, CancellationToken cancellationToken)
         {
             if (limit <= 0)
                 throw new ArgumentOutOfRangeException("limit");
@@ -127,7 +130,7 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, DatabaseInstance[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollectionPage<DatabaseInstance>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
@@ -138,7 +141,14 @@
                     if (instances == null)
                         return null;
 
-                    return instances.ToObject<DatabaseInstance[]>();
+                    DatabaseInstance[] currentPage = instances.ToObject<DatabaseInstance[]>();
+                    if (currentPage == null || currentPage.Length == 0)
+                        return ReadOnlyCollectionPage<DatabaseInstance>.Empty;
+
+                    DatabaseInstanceId nextMarker = currentPage[currentPage.Length - 1].Id;
+                    Func<CancellationToken, Task<ReadOnlyCollectionPage<DatabaseInstance>>> getNextPageAsync =
+                        nextCancellationToken => ListDatabaseInstancesAsync(nextMarker, limit, nextCancellationToken);
+                    return new BasicReadOnlyCollectionPage<DatabaseInstance>(currentPage, getNextPageAsync);
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -423,7 +433,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<Database[]> ListDatabasesAsync(DatabaseInstanceId instanceId, DatabaseName marker, int? limit, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollectionPage<Database>> ListDatabasesAsync(DatabaseInstanceId instanceId, DatabaseName marker, int? limit, CancellationToken cancellationToken)
         {
             if (instanceId == null)
                 throw new ArgumentNullException("instanceId");
@@ -443,7 +453,7 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, Database[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollectionPage<Database>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
@@ -454,7 +464,14 @@
                     if (databases == null)
                         return null;
 
-                    return databases.ToObject<Database[]>();
+                    Database[] currentPage = databases.ToObject<Database[]>();
+                    if (currentPage == null || currentPage.Length == 0)
+                        return ReadOnlyCollectionPage<Database>.Empty;
+
+                    DatabaseName nextMarker = currentPage[currentPage.Length - 1].Name;
+                    Func<CancellationToken, Task<ReadOnlyCollectionPage<Database>>> getNextPageAsync =
+                        nextCancellationToken => ListDatabasesAsync(instanceId, nextMarker, limit, nextCancellationToken);
+                    return new BasicReadOnlyCollectionPage<Database>(currentPage, getNextPageAsync);
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -513,7 +530,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<DatabaseUser[]> ListDatabaseUsersAsync(DatabaseInstanceId instanceId, UserName marker, int? limit, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollectionPage<DatabaseUser>> ListDatabaseUsersAsync(DatabaseInstanceId instanceId, UserName marker, int? limit, CancellationToken cancellationToken)
         {
             if (instanceId == null)
                 throw new ArgumentNullException("instanceId");
@@ -533,18 +550,25 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, DatabaseUser[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollectionPage<DatabaseUser>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
                     if (result == null)
                         return null;
 
-                    JToken databases = result["users"];
-                    if (databases == null)
+                    JToken users = result["users"];
+                    if (users == null)
                         return null;
 
-                    return databases.ToObject<DatabaseUser[]>();
+                    DatabaseUser[] currentPage = users.ToObject<DatabaseUser[]>();
+                    if (currentPage == null || currentPage.Length == 0)
+                        return ReadOnlyCollectionPage<DatabaseUser>.Empty;
+
+                    UserName nextMarker = currentPage[currentPage.Length - 1].UserName;
+                    Func<CancellationToken, Task<ReadOnlyCollectionPage<DatabaseUser>>> getNextPageAsync =
+                        nextCancellationToken => ListDatabaseUsersAsync(instanceId, nextMarker, limit, nextCancellationToken);
+                    return new BasicReadOnlyCollectionPage<DatabaseUser>(currentPage, getNextPageAsync);
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -674,7 +698,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<DatabaseName[]> ListUserAccessAsync(DatabaseInstanceId instanceId, UserName userName, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<DatabaseName>> ListUserAccessAsync(DatabaseInstanceId instanceId, UserName userName, CancellationToken cancellationToken)
         {
             if (instanceId == null)
                 throw new ArgumentNullException("instanceId");
@@ -690,7 +714,7 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, DatabaseName[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollection<DatabaseName>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
@@ -705,7 +729,7 @@
                     foreach (JObject @obj in databases)
                         names.Add(@obj["name"].ToObject<DatabaseName>());
 
-                    return names.ToArray();
+                    return names.AsReadOnly();
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -774,7 +798,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<DatabaseFlavor[]> ListFlavorsAsync(CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<DatabaseFlavor>> ListFlavorsAsync(CancellationToken cancellationToken)
         {
             UriTemplate template = new UriTemplate("/flavors");
             var parameters = new Dictionary<string, string>();
@@ -785,7 +809,7 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, DatabaseFlavor[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollection<DatabaseFlavor>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
@@ -796,7 +820,7 @@
                     if (records == null)
                         return null;
 
-                    return records.ToObject<DatabaseFlavor[]>();
+                    return records.ToObject<ReadOnlyCollection<DatabaseFlavor>>();
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -896,7 +920,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<Backup[]> ListBackupsAsync(CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<Backup>> ListBackupsAsync(CancellationToken cancellationToken)
         {
             UriTemplate template = new UriTemplate("/backups");
             var parameters = new Dictionary<string, string>();
@@ -907,7 +931,7 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, Backup[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollection<Backup>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
@@ -918,7 +942,7 @@
                     if (backups == null)
                         return null;
 
-                    return backups.ToObject<Backup[]>();
+                    return backups.ToObject<ReadOnlyCollection<Backup>>();
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -983,7 +1007,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<Backup[]> ListBackupsForInstanceAsync(DatabaseInstanceId instanceId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<Backup>> ListBackupsForInstanceAsync(DatabaseInstanceId instanceId, CancellationToken cancellationToken)
         {
             if (instanceId == null)
                 throw new ArgumentNullException("instanceId");
@@ -997,7 +1021,7 @@
             Func<Task<HttpWebRequest>, Task<JObject>> requestResource =
                 GetResponseAsyncFunc<JObject>(cancellationToken);
 
-            Func<Task<JObject>, Backup[]> resultSelector =
+            Func<Task<JObject>, ReadOnlyCollection<Backup>> resultSelector =
                 task =>
                 {
                     JObject result = task.Result;
@@ -1008,7 +1032,7 @@
                     if (backups == null)
                         return null;
 
-                    return backups.ToObject<Backup[]>();
+                    return backups.ToObject<ReadOnlyCollection<Backup>>();
                 };
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -1030,7 +1054,7 @@
         /// <param name="instanceId">The database instance ID. This is obtained from <see cref="DatabaseInstance.Id">DatabaseInstance.Id</see>.</param>
         /// <param name="state">A <see cref="DatabaseInstanceStatus"/> representing the state the database instance should <em>not</em> be in at the end of the wait operation.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When the operation
         /// completes successfully, the <see cref="Task{TResult}.Result"/> property will contain a
@@ -1039,9 +1063,9 @@
         /// be equal to <paramref name="state"/>.
         /// </returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="instanceId"/> is <c>null</c>.
+        /// If <paramref name="instanceId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="state"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="state"/> is <see langword="null"/>.</para>
         /// </exception>
         protected Task<DatabaseInstance> WaitForDatabaseInstanceToLeaveStateAsync(DatabaseInstanceId instanceId, DatabaseInstanceStatus state, CancellationToken cancellationToken, IProgress<DatabaseInstance> progress)
         {
@@ -1109,7 +1133,7 @@
         /// </summary>
         /// <param name="databaseName">The database name to encode.</param>
         /// <returns>A string representation of the database name suitable for inclusion in the URI for a Cloud Databases API call.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="databaseName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="databaseName"/> is <see langword="null"/>.</exception>
         protected static string EscapeDatabaseName(DatabaseName databaseName)
         {
             return databaseName.Value.Replace(".", "%252e");
@@ -1121,7 +1145,7 @@
         /// </summary>
         /// <param name="username">The username to encode.</param>
         /// <returns>A string representation of the username suitable for inclusion in the URI for a Cloud Databases API call.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="username"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="username"/> is <see langword="null"/>.</exception>
         protected static string EscapeUserName(UserName username)
         {
             return username.Value.Replace(".", "%252e");
@@ -1132,14 +1156,14 @@
         /// </summary>
         /// <param name="instanceId">The database instance ID. This is obtained from <see cref="DatabaseInstance.Id">DatabaseInstance.Id</see>.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When
         /// the task completes successfully, the <see cref="Task{TResult}.Result"/>
         /// property will contain a <see cref="DatabaseInstance"/> object containing the
         /// updated state information for the database instance.
         /// </returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="instanceId"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="instanceId"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         private Task<DatabaseInstance> PollDatabaseInstanceStateAsync(DatabaseInstanceId instanceId, CancellationToken cancellationToken, IProgress<DatabaseInstance> progress)
         {

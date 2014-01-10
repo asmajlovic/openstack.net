@@ -2,12 +2,14 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Linq;
     using System.Net;
     using System.Net.Sockets;
     using System.Threading.Tasks;
     using JSIStudios.SimpleRESTServices.Client;
     using net.openstack.Core;
+    using net.openstack.Core.Collections;
     using net.openstack.Core.Domain;
     using net.openstack.Core.Providers;
     using net.openstack.Providers.Rackspace.Objects.LoadBalancers;
@@ -38,9 +40,9 @@
         /// Initializes a new instance of the <see cref="CloudLoadBalancerProvider"/> class with
         /// the specified values.
         /// </summary>
-        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <c>null</c>, no default identity is available so all calls must specify an explicit identity.</param>
-        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <c>null</c>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
-        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <c>null</c>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
+        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <see langword="null"/>, no default identity is available so all calls must specify an explicit identity.</param>
+        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <see langword="null"/>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
+        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <see langword="null"/>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
         public CloudLoadBalancerProvider(CloudIdentity defaultIdentity, string defaultRegion, IIdentityProvider identityProvider)
             : base(defaultIdentity, defaultRegion, identityProvider, null, null)
         {
@@ -50,11 +52,11 @@
         /// Initializes a new instance of the <see cref="CloudLoadBalancerProvider"/> class with
         /// the specified values.
         /// </summary>
-        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <c>null</c>, no default identity is available so all calls must specify an explicit identity.</param>
-        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <c>null</c>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
-        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <c>null</c>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
-        /// <param name="restService">The implementation of <see cref="IRestService"/> to use for executing synchronous REST requests. If this value is <c>null</c>, the provider will use a new instance of <see cref="JsonRestServices"/>.</param>
-        /// <param name="httpStatusCodeValidator">The HTTP status code validator to use for synchronous REST requests. If this value is <c>null</c>, the provider will use <see cref="HttpResponseCodeValidator.Default"/>.</param>
+        /// <param name="defaultIdentity">The default identity to use for calls that do not explicitly specify an identity. If this value is <see langword="null"/>, no default identity is available so all calls must specify an explicit identity.</param>
+        /// <param name="defaultRegion">The default region to use for calls that do not explicitly specify a region. If this value is <see langword="null"/>, the default region for the user will be used; otherwise if the service uses region-specific endpoints all calls must specify an explicit region.</param>
+        /// <param name="identityProvider">The identity provider to use for authenticating requests to this provider. If this value is <see langword="null"/>, a new instance of <see cref="CloudIdentityProvider"/> is created using <paramref name="defaultIdentity"/> as the default identity.</param>
+        /// <param name="restService">The implementation of <see cref="IRestService"/> to use for executing synchronous REST requests. If this value is <see langword="null"/>, the provider will use a new instance of <see cref="JsonRestServices"/>.</param>
+        /// <param name="httpStatusCodeValidator">The HTTP status code validator to use for synchronous REST requests. If this value is <see langword="null"/>, the provider will use <see cref="HttpResponseCodeValidator.Default"/>.</param>
         protected CloudLoadBalancerProvider(CloudIdentity defaultIdentity, string defaultRegion, IIdentityProvider identityProvider, IRestService restService, IHttpResponseCodeValidator httpStatusCodeValidator)
             : base(defaultIdentity, defaultRegion, identityProvider, restService, httpStatusCodeValidator)
         {
@@ -63,26 +65,57 @@
         #region ILoadBalancerService Members
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancer>> ListLoadBalancersAsync(LoadBalancerId markerId, int? limit, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollectionPage<LoadBalancer>> ListLoadBalancersAsync(LoadBalancerId markerId, int? limit, CancellationToken cancellationToken)
         {
             if (limit < 0)
                 throw new ArgumentOutOfRangeException("limit");
 
-            UriTemplate template = new UriTemplate("/loadbalancers?markerId={markerId}&limit={limit}");
+            UriTemplate template = new UriTemplate("/loadbalancers?marker={markerId}&limit={limit}");
             var parameters = new Dictionary<string, string>();
             if (markerId != null)
                 parameters.Add("markerId", markerId.Value);
             if (limit != null)
-                parameters.Add("limit", limit.ToString());
-
+            {
+                if (markerId != null)
+                {
+                    // the server includes the item with the ID "markerId" in the result.
+                    parameters.Add("limit", (limit + 1).ToString());
+                }
+                else
+                {
+                    parameters.Add("limit", limit.ToString());
+                }
+            }
             Func<Task<Tuple<IdentityToken, Uri>>, HttpWebRequest> prepareRequest =
                 PrepareRequestAsyncFunc(HttpMethod.GET, template, parameters);
 
             Func<Task<HttpWebRequest>, Task<ListLoadBalancersResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancersResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancersResponse>, IEnumerable<LoadBalancer>> resultSelector =
-                task => (task.Result != null ? task.Result.LoadBalancers : null) ?? Enumerable.Empty<LoadBalancer>();
+            Func<Task<ListLoadBalancersResponse>, ReadOnlyCollectionPage<LoadBalancer>> resultSelector =
+                task =>
+                {
+                    if (task.Result == null || task.Result.LoadBalancers == null)
+                        return ReadOnlyCollectionPage<LoadBalancer>.Empty;
+
+                    ReadOnlyCollection<LoadBalancer> result = task.Result.LoadBalancers;
+                    if (markerId != null && result.Count > 0)
+                    {
+                        if (result[0].Id != markerId)
+                            throw new InvalidOperationException("Expected the pagination result to include the marked load balancer.");
+
+                        // remove the marker so pagination behaves normally
+                        result = new List<LoadBalancer>(result.Skip(1)).AsReadOnly();
+                    }
+
+                    if (!result.Any())
+                        return ReadOnlyCollectionPage<LoadBalancer>.Empty;
+
+                    LoadBalancerId nextMarker = result[result.Count - 1].Id;
+                    Func<CancellationToken, Task<ReadOnlyCollectionPage<LoadBalancer>>> getNextPageAsync =
+                        nextCancellationToken => ListLoadBalancersAsync(nextMarker, limit, nextCancellationToken);
+                    return new BasicReadOnlyCollectionPage<LoadBalancer>(result, getNextPageAsync);
+                };
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -224,7 +257,7 @@
         /// <param name="loadBalancerIds">The IDs of load balancers to remove. These is obtained from <see cref="LoadBalancer.Id">LoadBalancer.Id</see>.</param>
         /// <param name="completionOption">Specifies when the <see cref="Task"/> representing the asynchronous server operation should be considered complete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>A <see cref="Task"/> object representing the asynchronous operation.</returns>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. If
@@ -232,9 +265,9 @@
         /// the task will not be considered complete until all of the load balancers
         /// transition out of the <see cref="LoadBalancerStatus.PendingDelete"/> state.
         /// </returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="loadBalancerIds"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="loadBalancerIds"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="loadBalancerIds"/> contains any <c>null</c> values.
+        /// If <paramref name="loadBalancerIds"/> contains any <see langword="null"/> values.
         /// <para>-or-</para>
         /// <para>If <paramref name="completionOption"/> is not a valid <see cref="AsyncCompletionOption"/>.</para>
         /// </exception>
@@ -419,7 +452,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<Node>> ListNodesAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<Node>> ListNodesAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -433,8 +466,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerNodesResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerNodesResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerNodesResponse>, IEnumerable<Node>> resultSelector =
-                task => (task.Result != null ? task.Result.Nodes : null) ?? Enumerable.Empty<Node>();
+            Func<Task<ListLoadBalancerNodesResponse>, ReadOnlyCollection<Node>> resultSelector =
+                task => (task.Result != null ? task.Result.Nodes : null) ?? new ReadOnlyCollection<Node>(new Node[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -473,7 +506,7 @@
             if (nodeConfiguration == null)
                 throw new ArgumentNullException("nodeConfiguration");
 
-            Func<Task<IEnumerable<Node>>, Node> resultSelector =
+            Func<Task<ReadOnlyCollection<Node>>, Node> resultSelector =
                 task => task.Result.Single();
 
             return
@@ -482,7 +515,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<Node>> AddNodeRangeAsync(LoadBalancerId loadBalancerId, IEnumerable<NodeConfiguration> nodeConfigurations, AsyncCompletionOption completionOption, CancellationToken cancellationToken, IProgress<LoadBalancer> progress)
+        public Task<ReadOnlyCollection<Node>> AddNodeRangeAsync(LoadBalancerId loadBalancerId, IEnumerable<NodeConfiguration> nodeConfigurations, AsyncCompletionOption completionOption, CancellationToken cancellationToken, IProgress<LoadBalancer> progress)
         {
             if (nodeConfigurations == null)
                 throw new ArgumentNullException("nodeConfigurations");
@@ -497,25 +530,25 @@
         /// <param name="nodeConfigurations">A collection of <see cref="NodeConfiguration"/> objects describing the load balancer nodes to add.</param>
         /// <param name="completionOption">Specifies when the <see cref="Task"/> representing the asynchronous server operation should be considered complete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When the operation
         /// completes, the <see cref="Task{TResult}.Result"/> property will contain a collection of
         /// <see cref="Node"/> objects describing the new load balancer nodes.
         /// </returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="nodeConfigurations"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="nodeConfigurations"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="nodeConfigurations"/> contains any <c>null</c> values.
+        /// If <paramref name="nodeConfigurations"/> contains any <see langword="null"/> values.
         /// <para>-or-</para>
         /// <para>If <paramref name="completionOption"/> is not a valid <see cref="AsyncCompletionOption"/>.</para>
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="http://docs.rackspace.com/loadbalancers/api/v1.0/clb-devguide/content/Add_Nodes-d1e2379.html">Add Nodes (Rackspace Cloud Load Balancers Developer Guide - API v1.0)</seealso>
-        public Task<IEnumerable<Node>> AddNodeRangeAsync(LoadBalancerId loadBalancerId, NodeConfiguration[] nodeConfigurations, AsyncCompletionOption completionOption, CancellationToken cancellationToken, IProgress<LoadBalancer> progress)
+        public Task<ReadOnlyCollection<Node>> AddNodeRangeAsync(LoadBalancerId loadBalancerId, NodeConfiguration[] nodeConfigurations, AsyncCompletionOption completionOption, CancellationToken cancellationToken, IProgress<LoadBalancer> progress)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -526,7 +559,7 @@
 
             if (nodeConfigurations.Length == 0)
             {
-                return InternalTaskExtensions.CompletedTask(Enumerable.Empty<Node>());
+                return InternalTaskExtensions.CompletedTask(new ReadOnlyCollection<Node>(new Node[0]));
             }
             else
             {
@@ -543,7 +576,7 @@
                 Func<Task<HttpWebRequest>, Task<ListLoadBalancerNodesResponse>> requestResource =
                     GetResponseAsyncFunc<ListLoadBalancerNodesResponse>(cancellationToken);
 
-                Func<Task<ListLoadBalancerNodesResponse>, Task<IEnumerable<Node>>> resultSelector =
+                Func<Task<ListLoadBalancerNodesResponse>, Task<ReadOnlyCollection<Node>>> resultSelector =
                     task =>
                     {
                         task.PropagateExceptions();
@@ -553,11 +586,11 @@
                                 t =>
                                 {
                                     t.PropagateExceptions();
-                                    return task.Result.Nodes.AsEnumerable();
+                                    return task.Result.Nodes;
                                 });
                         }
 
-                        return InternalTaskExtensions.CompletedTask(task.Result.Nodes.AsEnumerable());
+                        return InternalTaskExtensions.CompletedTask(task.Result.Nodes);
                     };
 
                 return AuthenticateServiceAsync(cancellationToken)
@@ -651,15 +684,15 @@
         /// <param name="nodeIds">The load balancer node IDs of nodes to remove. These are obtained from <see cref="Node.Id">Node.Id</see>.</param>
         /// <param name="completionOption">Specifies when the <see cref="Task"/> representing the asynchronous server operation should be considered complete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>A <see cref="Task"/> object representing the asynchronous operation.</returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="nodeIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="nodeIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="nodeIds"/> contains any <c>null</c> values.
+        /// If <paramref name="nodeIds"/> contains any <see langword="null"/> values.
         /// <para>-or-</para>
         /// <para>If <paramref name="completionOption"/> is not a valid <see cref="AsyncCompletionOption"/>.</para>
         /// </exception>
@@ -719,15 +752,29 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<NodeServiceEvent>> ListNodeServiceEventsAsync(LoadBalancerId loadBalancerId, NodeServiceEventId markerId, int? limit, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollectionPage<NodeServiceEvent>> ListNodeServiceEventsAsync(LoadBalancerId loadBalancerId, NodeServiceEventId markerId, int? limit, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
             if (limit <= 0)
                 throw new ArgumentOutOfRangeException("limit");
 
-            UriTemplate template = new UriTemplate("/loadbalancers/{loadBalancerId}/nodes/events");
+            UriTemplate template = new UriTemplate("/loadbalancers/{loadBalancerId}/nodes/events?marker={markerId}&limit={limit}");
             var parameters = new Dictionary<string, string> { { "loadBalancerId", loadBalancerId.Value } };
+            if (markerId != null)
+                parameters.Add("markerId", markerId.Value);
+            if (limit != null)
+            {
+                if (markerId != null)
+                {
+                    // the server includes the item with the ID "markerId" in the result.
+                    parameters.Add("limit", (limit + 1).ToString());
+                }
+                else
+                {
+                    parameters.Add("limit", limit.ToString());
+                }
+            }
 
             Func<Task<Tuple<IdentityToken, Uri>>, HttpWebRequest> prepareRequest =
                 PrepareRequestAsyncFunc(HttpMethod.GET, template, parameters);
@@ -735,8 +782,30 @@
             Func<Task<HttpWebRequest>, Task<ListNodeServiceEventsResponse>> requestResource =
                 GetResponseAsyncFunc<ListNodeServiceEventsResponse>(cancellationToken);
 
-            Func<Task<ListNodeServiceEventsResponse>, IEnumerable<NodeServiceEvent>> resultSelector =
-                task => (task.Result != null ? task.Result.NodeServiceEvents : null) ?? Enumerable.Empty<NodeServiceEvent>();
+            Func<Task<ListNodeServiceEventsResponse>, ReadOnlyCollectionPage<NodeServiceEvent>> resultSelector =
+                task =>
+                {
+                    if (task.Result == null || task.Result.NodeServiceEvents == null)
+                        return ReadOnlyCollectionPage<NodeServiceEvent>.Empty;
+
+                    ReadOnlyCollection<NodeServiceEvent> result = task.Result.NodeServiceEvents;
+                    if (markerId != null && result.Count > 0)
+                    {
+                        if (result[0].Id != markerId)
+                            throw new InvalidOperationException("Expected the pagination result to include the marked node service event.");
+
+                        // remove the marker so pagination behaves normally
+                        result = new List<NodeServiceEvent>(result.Skip(1)).AsReadOnly();
+                    }
+
+                    if (!result.Any())
+                        return ReadOnlyCollectionPage<NodeServiceEvent>.Empty;
+
+                    NodeServiceEventId nextMarker = result[result.Count - 1].Id;
+                    Func<CancellationToken, Task<ReadOnlyCollectionPage<NodeServiceEvent>>> getNextPageAsync =
+                        nextCancellationToken => ListNodeServiceEventsAsync(loadBalancerId, nextMarker, limit, nextCancellationToken);
+                    return new BasicReadOnlyCollectionPage<NodeServiceEvent>(result, getNextPageAsync);
+                };
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -745,7 +814,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerVirtualAddress>> ListVirtualAddressesAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerVirtualAddress>> ListVirtualAddressesAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -759,8 +828,8 @@
             Func<Task<HttpWebRequest>, Task<ListVirtualAddressesResponse>> requestResource =
                 GetResponseAsyncFunc<ListVirtualAddressesResponse>(cancellationToken);
 
-            Func<Task<ListVirtualAddressesResponse>, IEnumerable<LoadBalancerVirtualAddress>> resultSelector =
-                task => (task.Result != null ? task.Result.VirtualAddresses : null) ?? Enumerable.Empty<LoadBalancerVirtualAddress>();
+            Func<Task<ListVirtualAddressesResponse>, ReadOnlyCollection<LoadBalancerVirtualAddress>> resultSelector =
+                task => (task.Result != null ? task.Result.VirtualAddresses : null) ?? new ReadOnlyCollection<LoadBalancerVirtualAddress>(new LoadBalancerVirtualAddress[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -862,19 +931,19 @@
         /// <param name="virtualAddressIds">The virtual address IDs. These are obtained from <see cref="LoadBalancerVirtualAddress.Id">LoadBalancerVirtualAddress.Id</see>.</param>
         /// <param name="completionOption">Specifies when the <see cref="Task"/> representing the asynchronous server operation should be considered complete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. If <paramref name="completionOption"/> is
         /// <see cref="AsyncCompletionOption.RequestCompleted"/>, the task will not be considered complete until
         /// the load balancer transitions out of the <see cref="LoadBalancerStatus.PendingUpdate"/> state.
         /// </returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="virtualAddressIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="virtualAddressIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="virtualAddressIds"/> contains any <c>null</c> values.
+        /// If <paramref name="virtualAddressIds"/> contains any <see langword="null"/> values.
         /// <para>-or-</para>
         /// <para>If <paramref name="completionOption"/> is not a valid <see cref="AsyncCompletionOption"/>.</para>
         /// </exception>
@@ -938,7 +1007,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<string>> ListAllowedDomainsAsync(CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<string>> ListAllowedDomainsAsync(CancellationToken cancellationToken)
         {
             UriTemplate template = new UriTemplate("/loadbalancers/alloweddomains");
             Dictionary<string, string> parameters = new Dictionary<string, string>();
@@ -948,8 +1017,8 @@
             Func<Task<HttpWebRequest>, Task<ListAllowedDomainsResponse>> requestResource =
                 GetResponseAsyncFunc<ListAllowedDomainsResponse>(cancellationToken);
 
-            Func<Task<ListAllowedDomainsResponse>, IEnumerable<string>> resultSelector =
-                task => task.Result.AllowedDomains;
+            Func<Task<ListAllowedDomainsResponse>, ReadOnlyCollection<string>> resultSelector =
+                task => new ReadOnlyCollection<string>(task.Result.AllowedDomains.ToArray());
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -958,7 +1027,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancer>> ListBillableLoadBalancersAsync(DateTimeOffset? startTime, DateTimeOffset? endTime, int? offset, int? limit, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollectionPage<LoadBalancer>> ListBillableLoadBalancersAsync(DateTimeOffset? startTime, DateTimeOffset? endTime, int? offset, int? limit, CancellationToken cancellationToken)
         {
             if (endTime < startTime)
                 throw new ArgumentOutOfRangeException("endTime");
@@ -984,8 +1053,20 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancersResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancersResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancersResponse>, IEnumerable<LoadBalancer>> resultSelector =
-                task => (task.Result != null ? task.Result.LoadBalancers : null) ?? Enumerable.Empty<LoadBalancer>();
+            Func<Task<ListLoadBalancersResponse>, ReadOnlyCollectionPage<LoadBalancer>> resultSelector =
+                task =>
+                {
+                    ReadOnlyCollectionPage<LoadBalancer> page = null;
+                    if (task.Result != null && task.Result.LoadBalancers != null && task.Result.LoadBalancers.Count > 0)
+                    {
+                        int nextOffset = (offset ?? 0) + task.Result.LoadBalancers.Count;
+                        Func<CancellationToken, Task<ReadOnlyCollectionPage<LoadBalancer>>> getNextPageAsync =
+                            nextCancellationToken => ListBillableLoadBalancersAsync(startTime, endTime, nextOffset, limit, nextCancellationToken);
+                        page = new BasicReadOnlyCollectionPage<LoadBalancer>(task.Result.LoadBalancers, getNextPageAsync);
+                    }
+
+                    return page ?? ReadOnlyCollectionPage<LoadBalancer>.Empty;
+                };
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -994,7 +1075,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerUsage>> ListAccountLevelUsageAsync(DateTimeOffset? startTime, DateTimeOffset? endTime, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerUsage>> ListAccountLevelUsageAsync(DateTimeOffset? startTime, DateTimeOffset? endTime, CancellationToken cancellationToken)
         {
             if (endTime < startTime)
                 throw new ArgumentOutOfRangeException("endTime");
@@ -1012,8 +1093,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerUsageResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerUsageResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerUsageResponse>, IEnumerable<LoadBalancerUsage>> resultSelector =
-                task => (task.Result != null ? task.Result.UsageRecords : null) ?? Enumerable.Empty<LoadBalancerUsage>();
+            Func<Task<ListLoadBalancerUsageResponse>, ReadOnlyCollection<LoadBalancerUsage>> resultSelector =
+                task => (task.Result != null ? task.Result.UsageRecords : null) ?? new ReadOnlyCollection<LoadBalancerUsage>(new LoadBalancerUsage[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -1022,7 +1103,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerUsage>> ListHistoricalUsageAsync(LoadBalancerId loadBalancerId, DateTimeOffset? startTime, DateTimeOffset? endTime, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerUsage>> ListHistoricalUsageAsync(LoadBalancerId loadBalancerId, DateTimeOffset? startTime, DateTimeOffset? endTime, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -1042,8 +1123,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerUsageResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerUsageResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerUsageResponse>, IEnumerable<LoadBalancerUsage>> resultSelector =
-                task => (task.Result != null ? task.Result.UsageRecords : null) ?? Enumerable.Empty<LoadBalancerUsage>();
+            Func<Task<ListLoadBalancerUsageResponse>, ReadOnlyCollection<LoadBalancerUsage>> resultSelector =
+                task => (task.Result != null ? task.Result.UsageRecords : null) ?? new ReadOnlyCollection<LoadBalancerUsage>(new LoadBalancerUsage[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -1052,7 +1133,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerUsage>> ListCurrentUsageAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerUsage>> ListCurrentUsageAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -1066,8 +1147,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerUsageResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerUsageResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerUsageResponse>, IEnumerable<LoadBalancerUsage>> resultSelector =
-                task => (task.Result != null ? task.Result.UsageRecords : null) ?? Enumerable.Empty<LoadBalancerUsage>();
+            Func<Task<ListLoadBalancerUsageResponse>, ReadOnlyCollection<LoadBalancerUsage>> resultSelector =
+                task => (task.Result != null ? task.Result.UsageRecords : null) ?? new ReadOnlyCollection<LoadBalancerUsage>(new LoadBalancerUsage[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -1076,7 +1157,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<NetworkItem>> ListAccessListAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<NetworkItem>> ListAccessListAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -1093,7 +1174,7 @@
             Func<Task<HttpWebRequest>, Task<GetAccessListResponse>> requestResource =
                 GetResponseAsyncFunc<GetAccessListResponse>(cancellationToken);
 
-            Func<Task<GetAccessListResponse>, IEnumerable<NetworkItem>> resultSelector =
+            Func<Task<GetAccessListResponse>, ReadOnlyCollection<NetworkItem>> resultSelector =
                 task => task.Result.AccessList;
 
             return AuthenticateServiceAsync(cancellationToken)
@@ -1127,7 +1208,7 @@
         /// <param name="networkItems">A collection of <see cref="NetworkItem"/> objects describing the network items to add to the load balancer's access list.</param>
         /// <param name="completionOption">Specifies when the <see cref="Task"/> representing the asynchronous server operation should be considered complete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When the operation
         /// completes, the <see cref="Task{TResult}.Result"/> property will contain a collection of
@@ -1135,12 +1216,12 @@
         /// for the load balancer.
         /// </returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="networkItems"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="networkItems"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="networkItems"/> contains any <c>null</c> values.
+        /// If <paramref name="networkItems"/> contains any <see langword="null"/> values.
         /// <para>-or-</para>
         /// <para>If <paramref name="completionOption"/> is not a valid <see cref="AsyncCompletionOption"/>.</para>
         /// </exception>
@@ -1244,15 +1325,15 @@
         /// <param name="networkItemIds">The network item IDs. These are obtained from <see cref="NetworkItem.Id"/>.</param>
         /// <param name="completionOption">Specifies when the <see cref="Task"/> representing the asynchronous server operation should be considered complete.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications, if <paramref name="completionOption"/> is <see cref="AsyncCompletionOption.RequestCompleted"/>. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>A <see cref="Task"/> object representing the asynchronous operation.</returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="networkItemIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="networkItemIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="networkItemIds"/> contains any <c>null</c> values.
+        /// If <paramref name="networkItemIds"/> contains any <see langword="null"/> values.
         /// <para>-or-</para>
         /// <para>If <paramref name="completionOption"/> is not a valid <see cref="AsyncCompletionOption"/>.</para>
         /// </exception>
@@ -1771,7 +1852,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancingProtocol>> ListProtocolsAsync(CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancingProtocol>> ListProtocolsAsync(CancellationToken cancellationToken)
         {
             UriTemplate template = new UriTemplate("/loadbalancers/protocols");
             var parameters = new Dictionary<string, string>();
@@ -1782,8 +1863,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancingProtocolsResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancingProtocolsResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancingProtocolsResponse>, IEnumerable<LoadBalancingProtocol>> resultSelector =
-                task => (task.Result != null ? task.Result.Protocols : null) ?? Enumerable.Empty<LoadBalancingProtocol>();
+            Func<Task<ListLoadBalancingProtocolsResponse>, ReadOnlyCollection<LoadBalancingProtocol>> resultSelector =
+                task => (task.Result != null ? task.Result.Protocols : null) ?? new ReadOnlyCollection<LoadBalancingProtocol>(new LoadBalancingProtocol[0]);
 
             // authenticate -> request resource -> check result -> parse result -> cache result -> return
             return AuthenticateServiceAsync(cancellationToken)
@@ -1793,7 +1874,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancingAlgorithm>> ListAlgorithmsAsync(CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancingAlgorithm>> ListAlgorithmsAsync(CancellationToken cancellationToken)
         {
             UriTemplate template = new UriTemplate("/loadbalancers/algorithms");
             var parameters = new Dictionary<string, string>();
@@ -1804,8 +1885,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancingAlgorithmsResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancingAlgorithmsResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancingAlgorithmsResponse>, IEnumerable<LoadBalancingAlgorithm>> resultSelector =
-                task => (task.Result != null ? task.Result.Algorithms : null) ?? Enumerable.Empty<LoadBalancingAlgorithm>();
+            Func<Task<ListLoadBalancingAlgorithmsResponse>, ReadOnlyCollection<LoadBalancingAlgorithm>> resultSelector =
+                task => (task.Result != null ? new ReadOnlyCollection<LoadBalancingAlgorithm>(task.Result.Algorithms.ToArray()) : null) ?? new ReadOnlyCollection<LoadBalancingAlgorithm>(new LoadBalancingAlgorithm[0]);
 
             // authenticate -> request resource -> check result -> parse result -> cache result -> return
             return AuthenticateServiceAsync(cancellationToken)
@@ -1913,7 +1994,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerMetadataItem>> ListLoadBalancerMetadataAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerMetadataItem>> ListLoadBalancerMetadataAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -1930,8 +2011,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerMetadataResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerMetadataResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerMetadataResponse>, IEnumerable<LoadBalancerMetadataItem>> resultSelector =
-                task => (task.Result != null ? task.Result.Metadata : null) ?? Enumerable.Empty<LoadBalancerMetadataItem>();
+            Func<Task<ListLoadBalancerMetadataResponse>, ReadOnlyCollection<LoadBalancerMetadataItem>> resultSelector =
+                task => (task.Result != null ? task.Result.Metadata : null) ?? new ReadOnlyCollection<LoadBalancerMetadataItem>(new LoadBalancerMetadataItem[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -1970,7 +2051,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerMetadataItem>> ListNodeMetadataAsync(LoadBalancerId loadBalancerId, NodeId nodeId, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerMetadataItem>> ListNodeMetadataAsync(LoadBalancerId loadBalancerId, NodeId nodeId, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -1990,8 +2071,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerMetadataResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerMetadataResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerMetadataResponse>, IEnumerable<LoadBalancerMetadataItem>> resultSelector =
-                task => (task.Result != null ? task.Result.Metadata : null) ?? Enumerable.Empty<LoadBalancerMetadataItem>();
+            Func<Task<ListLoadBalancerMetadataResponse>, ReadOnlyCollection<LoadBalancerMetadataItem>> resultSelector =
+                task => (task.Result != null ? task.Result.Metadata : null) ?? new ReadOnlyCollection<LoadBalancerMetadataItem>(new LoadBalancerMetadataItem[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest)
@@ -2033,7 +2114,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerMetadataItem>> AddLoadBalancerMetadataAsync(LoadBalancerId loadBalancerId, IEnumerable<KeyValuePair<string, string>> metadata, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerMetadataItem>> AddLoadBalancerMetadataAsync(LoadBalancerId loadBalancerId, IEnumerable<KeyValuePair<string, string>> metadata, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -2053,8 +2134,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerMetadataResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerMetadataResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerMetadataResponse>, IEnumerable<LoadBalancerMetadataItem>> resultSelector =
-                task => (task.Result != null ? task.Result.Metadata : null) ?? Enumerable.Empty<LoadBalancerMetadataItem>();
+            Func<Task<ListLoadBalancerMetadataResponse>, ReadOnlyCollection<LoadBalancerMetadataItem>> resultSelector =
+                task => (task.Result != null ? task.Result.Metadata : null) ?? new ReadOnlyCollection<LoadBalancerMetadataItem>(new LoadBalancerMetadataItem[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest).Unwrap()
@@ -2063,7 +2144,7 @@
         }
 
         /// <inheritdoc/>
-        public Task<IEnumerable<LoadBalancerMetadataItem>> AddNodeMetadataAsync(LoadBalancerId loadBalancerId, NodeId nodeId, IEnumerable<KeyValuePair<string, string>> metadata, CancellationToken cancellationToken)
+        public Task<ReadOnlyCollection<LoadBalancerMetadataItem>> AddNodeMetadataAsync(LoadBalancerId loadBalancerId, NodeId nodeId, IEnumerable<KeyValuePair<string, string>> metadata, CancellationToken cancellationToken)
         {
             if (loadBalancerId == null)
                 throw new ArgumentNullException("loadBalancerId");
@@ -2086,8 +2167,8 @@
             Func<Task<HttpWebRequest>, Task<ListLoadBalancerMetadataResponse>> requestResource =
                 GetResponseAsyncFunc<ListLoadBalancerMetadataResponse>(cancellationToken);
 
-            Func<Task<ListLoadBalancerMetadataResponse>, IEnumerable<LoadBalancerMetadataItem>> resultSelector =
-                task => (task.Result != null ? task.Result.Metadata : null) ?? Enumerable.Empty<LoadBalancerMetadataItem>();
+            Func<Task<ListLoadBalancerMetadataResponse>, ReadOnlyCollection<LoadBalancerMetadataItem>> resultSelector =
+                task => (task.Result != null ? task.Result.Metadata : null) ?? new ReadOnlyCollection<LoadBalancerMetadataItem>(new LoadBalancerMetadataItem[0]);
 
             return AuthenticateServiceAsync(cancellationToken)
                 .ContinueWith(prepareRequest).Unwrap()
@@ -2173,12 +2254,12 @@
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
         /// <returns>A <see cref="Task"/> object representing the asynchronous operation.</returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="metadataIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="metadataIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="metadataIds"/> contains any <c>null</c> values.
+        /// If <paramref name="metadataIds"/> contains any <see langword="null"/> values.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="http://docs.rackspace.com/loadbalancers/api/v1.0/clb-devguide/content/Remove_Metadata-d1e2675.html">Remove Metadata (Rackspace Cloud Load Balancers Developer Guide - API v1.0)</seealso>
@@ -2261,14 +2342,14 @@
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
         /// <returns>A <see cref="Task"/> object representing the asynchronous operation.</returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="nodeId"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="nodeId"/> is <see langword="null"/>.</para>
         /// <para>-or-</para>
-        /// <para>If <paramref name="metadataIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="metadataIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="metadataIds"/> contains any <c>null</c> values.
+        /// If <paramref name="metadataIds"/> contains any <see langword="null"/> values.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="http://docs.rackspace.com/loadbalancers/api/v1.0/clb-devguide/content/Remove_Metadata-d1e2675.html">Remove Metadata (Rackspace Cloud Load Balancers Developer Guide - API v1.0)</seealso>
@@ -2350,7 +2431,7 @@
         /// <param name="loadBalancerId">The load balancer ID. This is obtained from <see cref="LoadBalancer.Id">LoadBalancer.Id</see>.</param>
         /// <param name="state">A <see cref="LoadBalancerStatus"/> representing the state the load balancer should <em>not</em> be in at the end of the wait operation.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When the operation
         /// completes successfully, the <see cref="Task{TResult}.Result"/> property will contain a
@@ -2359,9 +2440,9 @@
         /// equal to <paramref name="state"/>.
         /// </returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerId"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerId"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="state"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="state"/> is <see langword="null"/>.</para>
         /// </exception>
         protected Task<LoadBalancer> WaitForLoadBalancerToLeaveStateAsync(LoadBalancerId loadBalancerId, LoadBalancerStatus state, CancellationToken cancellationToken, IProgress<LoadBalancer> progress)
         {
@@ -2428,14 +2509,14 @@
         /// </summary>
         /// <param name="loadBalancerId">The load balancer ID. This is obtained from <see cref="LoadBalancer.Id">LoadBalancer.Id</see>.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When
         /// the task completes successfully, the <see cref="Task{TResult}.Result"/>
         /// property will contain a <see cref="LoadBalancer"/> object containing the
         /// updated state information for the load balancer.
         /// </returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="loadBalancerId"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="loadBalancerId"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         private Task<LoadBalancer> PollLoadBalancerStateAsync(LoadBalancerId loadBalancerId, CancellationToken cancellationToken, IProgress<LoadBalancer> progress)
         {
@@ -2473,7 +2554,7 @@
         /// <param name="loadBalancerIds">The load balancer IDs. These are obtained from <see cref="LoadBalancer.Id">LoadBalancer.Id</see>.</param>
         /// <param name="state">A <see cref="LoadBalancerStatus"/> representing the state the load balancers should <em>not</em> be in at the end of the wait operation.</param>
         /// <param name="cancellationToken">The <see cref="CancellationToken"/> that the task will observe.</param>
-        /// <param name="progress">An optional callback object to receive progress notifications. If this is <c>null</c>, no progress notifications are sent.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications. If this is <see langword="null"/>, no progress notifications are sent.</param>
         /// <returns>
         /// A <see cref="Task"/> object representing the asynchronous operation. When the operation
         /// completes successfully, the <see cref="Task{TResult}.Result"/> property will contain a
@@ -2483,11 +2564,11 @@
         /// instances.
         /// </returns>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="loadBalancerIds"/> is <c>null</c>.
+        /// If <paramref name="loadBalancerIds"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="state"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="state"/> is <see langword="null"/>.</para>
         /// </exception>
-        /// <exception cref="ArgumentException">If <paramref name="loadBalancerIds"/> contains any <c>null</c> values.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="loadBalancerIds"/> contains any <see langword="null"/> values.</exception>
         protected Task<LoadBalancer[]> WaitForLoadBalancersToLeaveStateAsync(LoadBalancerId[] loadBalancerIds, LoadBalancerStatus state, CancellationToken cancellationToken, IProgress<LoadBalancer[]> progress)
         {
             if (loadBalancerIds == null)
@@ -2609,7 +2690,7 @@
             /// values are wrapped in a single-element array.
             /// </summary>
             /// <param name="delegate">The delegate to dispatch progress reports to.</param>
-            /// <exception cref="ArgumentNullException">If <paramref name="delegate"/> is <c>null</c>.</exception>
+            /// <exception cref="ArgumentNullException">If <paramref name="delegate"/> is <see langword="null"/>.</exception>
             public ArrayElementProgressWrapper(IProgress<T[]> @delegate)
             {
                 if (@delegate == null)

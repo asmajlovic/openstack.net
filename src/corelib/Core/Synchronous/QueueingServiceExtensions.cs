@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.Collections.ObjectModel;
     using System.ComponentModel;
+    using net.openstack.Core.Collections;
     using net.openstack.Core.Domain;
     using net.openstack.Core.Domain.Queues;
     using CancellationToken = System.Threading.CancellationToken;
@@ -26,7 +27,7 @@
         /// </summary>
         /// <param name="queueingService">The queueing service instance.</param>
         /// <returns>A <see cref="HomeDocument"/> object describing the operations supported by the service.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Get_Home_Document">Get Home Document (OpenStack Marconi API v1 Blueprint)</seealso>
         public static HomeDocument GetHome(this IQueueingService queueingService)
@@ -57,7 +58,7 @@
         /// is unavailable due to a storage driver failure or some other error, the operation will
         /// fail and the exception will contain the reason for the failure.
         /// </returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/wiki/Marconi/specs/api/v1#Check_Node_Health">Check Node Health (OpenStack Marconi API v1 Blueprint)</seealso>
         public static void GetNodeHealth(this IQueueingService queueingService)
@@ -88,9 +89,9 @@
         /// </summary>
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
-        /// <returns><c>true</c> if the queue was created by the call, or <c>false</c> if the queue already existed.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <returns><see langword="true"/> if the queue was created by the call, or <see langword="false"/> if the queue already existed.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Create_Queue">Create Queue (OpenStack Marconi API v1 Blueprint)</seealso>
         public static bool CreateQueue(this IQueueingService queueingService, QueueName queueName)
@@ -116,15 +117,15 @@
         /// Gets a list of queues.
         /// </summary>
         /// <param name="queueingService">The queueing service instance.</param>
-        /// <param name="marker">The name of the last queue in the previous list. The resulting collection of queues will start with the first queue <em>after</em> this value, when sorted using <see cref="StringComparer.Ordinal"/>. If this value is <c>null</c>, the list starts at the beginning.</param>
-        /// <param name="limit">The maximum number of queues to return. If this value is <c>null</c>, a provider-specific default value is used.</param>
-        /// <param name="detailed"><c>true</c> to return detailed information about each queue; otherwise, <c>false</c>.</param>
+        /// <param name="marker">The name of the last queue in the previous list. The resulting collection of queues will start with the first queue <em>after</em> this value, when sorted using <see cref="StringComparer.Ordinal"/>. If this value is <see langword="null"/>, the list starts at the beginning.</param>
+        /// <param name="limit">The maximum number of queues to return. If this value is <see langword="null"/>, a provider-specific default value is used.</param>
+        /// <param name="detailed"><see langword="true"/> to return detailed information about each queue; otherwise, <see langword="false"/>.</param>
         /// <returns><placeholder>placeholder</placeholder></returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentOutOfRangeException">If <paramref name="limit"/> is less than or equal to 0.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#List_Queues">List Queues (OpenStack Marconi API v1 Blueprint)</seealso>
-        public static IEnumerable<CloudQueue> ListQueues(this IQueueingService queueingService, QueueName marker, int? limit, bool detailed)
+        public static ReadOnlyCollectionPage<CloudQueue> ListQueues(this IQueueingService queueingService, QueueName marker, int? limit, bool detailed)
         {
             if (queueingService == null)
                 throw new ArgumentNullException("queueingService");
@@ -148,9 +149,9 @@
         /// </summary>
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
-        /// <returns><c>true</c> if queue with the specified name exists; otherwise, <c>false</c>.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <returns><see langword="true"/> if queue with the specified name exists; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Checking_Queue_Existence">Checking Queue Existence (OpenStack Marconi API v1 Blueprint)</seealso>
         public static bool QueueExists(this IQueueingService queueingService, QueueName queueName)
@@ -180,8 +181,8 @@
         /// </remarks>
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Delete_Queue">Delete Queue (OpenStack Marconi API v1 Blueprint)</seealso>
         public static void DeleteQueue(this IQueueingService queueingService, QueueName queueName)
@@ -214,8 +215,8 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="metadata">The metadata to associate with the queue.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Set_Queue_Metadata">Set Queue Metadata (OpenStack Marconi API v1 Blueprint)</seealso>
         public static void SetQueueMetadata<T>(this IQueueingService queueingService, QueueName queueName, T metadata)
@@ -244,8 +245,8 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <returns>A <see cref="JObject"/> object containing the metadata associated with the queue.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Get_Queue_Metadata">Get Queue Metadata (OpenStack Marconi API v1 Blueprint)</seealso>
         public static JObject GetQueueMetadata(this IQueueingService queueingService, QueueName queueName)
@@ -274,8 +275,8 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <returns>A deserialized object of type <typeparamref name="T"/> representing the metadata associated with the queue.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="JsonSerializationException">If an error occurs while deserializing the metadata.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Get_Queue_Metadata">Get Queue Metadata (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -305,8 +306,8 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <returns>A <see cref="QueueStatistics"/> object containing statistics for the queue.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Get_Queue_Stats">Get Queue Stats (OpenStack Marconi API v1 Blueprint)</seealso>
         public static QueueStatistics GetQueueStatistics(this IQueueingService queueingService, QueueName queueName)
@@ -337,13 +338,13 @@
         /// </summary>
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
-        /// <param name="marker">The <see cref="QueuedMessageList"/> object returned by a previous call to <see cref="IQueueingService.ListMessagesAsync"/>. If this value is <c>null</c>, the list starts at the beginning.</param>
-        /// <param name="limit">The maximum number of messages to return. If this value is <c>null</c>, a provider-specific default value is used.</param>
-        /// <param name="echo"><c>true</c> to include messages created by the current client; otherwise, <c>false</c>.</param>
-        /// <param name="includeClaimed"><c>true</c> to include claimed messages; otherwise <c>false</c> to return only unclaimed messages.</param>
+        /// <param name="marker">The <see cref="QueuedMessageList"/> object returned by a previous call to <see cref="IQueueingService.ListMessagesAsync"/>. If this value is <see langword="null"/>, the list starts at the beginning.</param>
+        /// <param name="limit">The maximum number of messages to return. If this value is <see langword="null"/>, a provider-specific default value is used.</param>
+        /// <param name="echo"><see langword="true"/> to include messages created by the current client; otherwise, <see langword="false"/>.</param>
+        /// <param name="includeClaimed"><see langword="true"/> to include claimed messages; otherwise <see langword="false"/> to return only unclaimed messages.</param>
         /// <returns>A collection of <see cref="QueuedMessage"/> objects describing the messages in the queue.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentOutOfRangeException">If <paramref name="limit"/> is less than or equal to 0.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#List_Messages">List Messages (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -377,11 +378,11 @@
         /// <param name="queueName">The queue name.</param>
         /// <param name="messageId">The message ID. This is obtained from <see cref="QueuedMessage.Id">QueuedMessage.Id</see>.</param>
         /// <returns>A <see cref="QueuedMessage"/> object containing detailed information about the specified message.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messageId"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messageId"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Get_a_Specific_Message">Get a Specific Message (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -415,18 +416,18 @@
         /// <param name="queueName">The queue name.</param>
         /// <param name="messageIds">The message IDs of messages to get.</param>
         /// <returns>A collection of <see cref="QueuedMessage"/> objects containing detailed information about the specified messages.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messageIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messageIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="messageIds"/> contains a <c>null</c> value.
+        /// If <paramref name="messageIds"/> contains a <see langword="null"/> value.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Get_a_Set_of_Messages_by_ID">Get a Set of Messages by ID (OpenStack Marconi API v1 Blueprint)</seealso>
-        public static IEnumerable<QueuedMessage> GetMessages(this IQueueingService queueingService, QueueName queueName, IEnumerable<MessageId> messageIds)
+        public static ReadOnlyCollection<QueuedMessage> GetMessages(this IQueueingService queueingService, QueueName queueName, IEnumerable<MessageId> messageIds)
         {
             if (queueingService == null)
                 throw new ArgumentNullException("queueingService");
@@ -451,14 +452,14 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="messages">The messages to post.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messages"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messages"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="messages"/> contains a <c>null</c> value.
+        /// If <paramref name="messages"/> contains a <see langword="null"/> value.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Post_Message.28s.29">Post Message(s) (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -487,14 +488,14 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="messages">The messages to post.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messages"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messages"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="messages"/> contains a <c>null</c> value.
+        /// If <paramref name="messages"/> contains a <see langword="null"/> value.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Post_Message.28s.29">Post Message(s) (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -523,14 +524,14 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="messages">The messages to post.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messages"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messages"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="messages"/> contains a <c>null</c> value.
+        /// If <paramref name="messages"/> contains a <see langword="null"/> value.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Post_Message.28s.29">Post Message(s) (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -559,14 +560,14 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="messages">The messages to post.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messages"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messages"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="messages"/> contains a <c>null</c> value.
+        /// If <paramref name="messages"/> contains a <see langword="null"/> value.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Post_Message.28s.29">Post Message(s) (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -595,12 +596,12 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="messageId">The ID of the message to delete. This is obtained from <see cref="QueuedMessage.Id">QueuedMessage.Id</see>.</param>
-        /// <param name="claim">The claim for the message. If this value is <c>null</c>, the delete operation will fail if the message is claimed. If this value is non-<c>null</c>, the delete operation will fail if the message is not claimed by the specified claim.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <param name="claim">The claim for the message. If this value is <see langword="null"/>, the delete operation will fail if the message is claimed. If this value is non-<see langword="null"/>, the delete operation will fail if the message is not claimed by the specified claim.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messageId"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messageId"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Delete_Message">Delete Message (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -634,14 +635,14 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="messageIds">The IDs of messages to delete. These are obtained from <see cref="QueuedMessage.Id">QueuedMessage.Id</see>.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="messageIds"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="messageIds"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// If <paramref name="messageIds"/> contains a <c>null</c> value.
+        /// If <paramref name="messageIds"/> contains a <see langword="null"/> value.
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Delete_a_Set_of_Messages_by_ID">Delete a Set of Messages by ID (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -684,12 +685,12 @@
         /// </remarks>
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
-        /// <param name="limit">The maximum number of messages to claim. If this value is <c>null</c>, a provider-specific default value is used.</param>
+        /// <param name="limit">The maximum number of messages to claim. If this value is <see langword="null"/>, a provider-specific default value is used.</param>
         /// <param name="timeToLive">The time to wait before the server automatically releases the claim.</param>
         /// <param name="gracePeriod">The time to wait, after the time-to-live for the claim expires, before the server allows the claimed messages to be deleted due to the individual message's time-to-live expiring.</param>
         /// <returns>A <see cref="Claim"/> object representing the claim.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueName"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentOutOfRangeException">
         /// If <paramref name="limit"/> is less than or equal to 0.
         /// <para>-or-</para>
@@ -728,11 +729,11 @@
         /// <param name="queueName">The queue name.</param>
         /// <param name="claim">The claim to query.</param>
         /// <returns>A <see cref="Claim"/> object representing the claim.</returns>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="claim"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="claim"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Query_Claim">Query Claim (OpenStack Marconi API v1 Blueprint)</seealso>
@@ -766,11 +767,11 @@
         /// <param name="queueName">The queue name.</param>
         /// <param name="claim">The claim to renew.</param>
         /// <param name="timeToLive">The updated time-to-live for the claim.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="claim"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="claim"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="ArgumentOutOfRangeException">If <paramref name="timeToLive"/> is negative.</exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
@@ -805,11 +806,11 @@
         /// <param name="queueingService">The queueing service instance.</param>
         /// <param name="queueName">The queue name.</param>
         /// <param name="claim">The claim to release.</param>
-        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentNullException">If <paramref name="queueingService"/> is <see langword="null"/>.</exception>
         /// <exception cref="ArgumentNullException">
-        /// If <paramref name="queueName"/> is <c>null</c>.
+        /// If <paramref name="queueName"/> is <see langword="null"/>.
         /// <para>-or-</para>
-        /// <para>If <paramref name="claim"/> is <c>null</c>.</para>
+        /// <para>If <paramref name="claim"/> is <see langword="null"/>.</para>
         /// </exception>
         /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         /// <seealso href="https://wiki.openstack.org/w/index.php?title=Marconi/specs/api/v1#Release_Claim">Release Claim (OpenStack Marconi API v1 Blueprint)</seealso>
