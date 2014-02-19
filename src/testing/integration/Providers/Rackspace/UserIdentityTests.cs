@@ -66,7 +66,15 @@
 
             Assert.IsNotNull(userAccess.ServiceCatalog);
 
-            Console.WriteLine(JsonConvert.SerializeObject(userAccess, Formatting.Indented));
+            Console.Error.WriteLine(JsonConvert.SerializeObject(userAccess, Formatting.Indented));
+
+            Console.WriteLine("Available Services:");
+            foreach (ServiceCatalog serviceCatalog in userAccess.ServiceCatalog)
+            {
+                Console.WriteLine("    {0} ({1})", serviceCatalog.Name, serviceCatalog.Type);
+                var regions = serviceCatalog.Endpoints.Select(i => i.Region ?? "global").OrderBy(i => i, StringComparer.OrdinalIgnoreCase);
+                Console.WriteLine("        {0}", string.Join(", ", regions));
+            }
         }
 
         /// <summary>
@@ -156,6 +164,26 @@
             // ensure the the refresh was applied to the cache
             IdentityToken newCachedToken = provider.GetToken();
             Assert.AreSame(newToken, newCachedToken);
+        }
+
+        [TestMethod]
+        [TestCategory(TestCategories.User)]
+        [TestCategory(TestCategories.Identity)]
+        public void TestListRoles()
+        {
+            IIdentityProvider provider = Bootstrapper.CreateIdentityProvider();
+            IExtendedCloudIdentityProvider extendedProvider = provider as IExtendedCloudIdentityProvider;
+            if (extendedProvider == null)
+                Assert.Inconclusive("The current identity provider does not implement {0}", typeof(IExtendedCloudIdentityProvider).Name);
+
+            IEnumerable<Role> roles = extendedProvider.ListRoles(limit: 500);
+            Console.WriteLine("Roles:");
+            foreach (Role role in roles)
+            {
+                Console.WriteLine("  Role \"{0}\" (id: {1})", role.Name, role.Id);
+                if (!string.IsNullOrEmpty(role.Description))
+                    Console.WriteLine("    Description: {0}", role.Description);
+            }
         }
 
         [TestMethod]
@@ -291,6 +319,13 @@
             Assert.AreEqual(username, user.Username);
             Assert.IsFalse(string.IsNullOrEmpty(user.Id));
             Assert.IsFalse(string.IsNullOrEmpty(user.Password));
+
+            IEnumerable<Role> roles = provider.GetRolesByUser(user.Id);
+            Console.WriteLine("Roles for the created user:");
+            foreach (Role role in roles)
+                Console.WriteLine("    {0} ({1}) # {2}", role.Name, role.Id, role.Description);
+
+            Assert.IsTrue(roles.Any(i => string.Equals(i.Name, "identity:default", StringComparison.OrdinalIgnoreCase)));
 
             try
             {

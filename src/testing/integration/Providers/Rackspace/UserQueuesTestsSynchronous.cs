@@ -6,11 +6,11 @@
     using System.Diagnostics;
     using System.Linq;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
+    using net.openstack.Core.Collections;
     using net.openstack.Core.Domain;
     using net.openstack.Core.Domain.Queues;
     using net.openstack.Core.Providers;
     using net.openstack.Core.Synchronous;
-    using net.openstack.Providers.Rackspace;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using CancellationToken = System.Threading.CancellationToken;
@@ -235,7 +235,7 @@
         [TestMethod]
         [TestCategory(TestCategories.User)]
         [TestCategory(TestCategories.QueuesSynchronous)]
-        public void SynchronousTestListAllQueueMessages()
+        public void SynchronousTestListAllQueueMessagesWithUpdates()
         {
             IQueueingService provider = CreateProvider();
             QueueName queueName = CreateRandomQueueName();
@@ -250,27 +250,57 @@
             HashSet<int> locatedMessages = new HashSet<int>();
 
             QueuedMessageList messages = provider.ListMessages(queueName, null, null, true, false);
-            foreach (QueuedMessage message in messages.Messages)
+            foreach (QueuedMessage message in messages)
                 Assert.IsTrue(locatedMessages.Add(message.Body.ToObject<SampleMetadata>().ValueA), "Received the same message more than once.");
 
-            int deletedMessage = messages.Messages[0].Body.ToObject<SampleMetadata>().ValueA;
-            provider.DeleteMessage(queueName, messages.Messages[0].Id, null);
+            int deletedMessage = messages[0].Body.ToObject<SampleMetadata>().ValueA;
+            provider.DeleteMessage(queueName, messages[0].Id, null);
 
-            while (messages.Messages.Count > 0)
+            while (messages.Count > 0)
             {
-                QueuedMessageList tempList = provider.ListMessages(queueName, messages, null, true, false);
-                if (tempList.Messages.Count > 0)
+                QueuedMessageList tempList = provider.ListMessages(queueName, messages.NextPageId, null, true, false);
+                if (tempList.Count > 0)
                 {
-                    Assert.IsTrue(locatedMessages.Add(tempList.Messages[0].Body.ToObject<SampleMetadata>().ValueA), "Received the same message more than once.");
-                    provider.DeleteMessage(queueName, tempList.Messages[0].Id, null);
+                    Assert.IsTrue(locatedMessages.Add(tempList[0].Body.ToObject<SampleMetadata>().ValueA), "Received the same message more than once.");
+                    provider.DeleteMessage(queueName, tempList[0].Id, null);
                 }
 
-                messages = provider.ListMessages(queueName, messages, null, true, false);
-                foreach (QueuedMessage message in messages.Messages)
+                messages = provider.ListMessages(queueName, messages.NextPageId, null, true, false);
+                foreach (QueuedMessage message in messages)
                 {
                     Assert.IsTrue(locatedMessages.Add(message.Body.ToObject<SampleMetadata>().ValueA), "Received the same message more than once.");
                 }
             }
+
+            Assert.AreEqual(28, locatedMessages.Count);
+            for (int i = 0; i < 28; i++)
+            {
+                Assert.IsTrue(locatedMessages.Contains(i), "The message listing did not include message '{0}', which was in the queue when the listing started and still in it afterwards.", i);
+            }
+
+            provider.DeleteQueue(queueName);
+        }
+
+        [TestMethod]
+        [TestCategory(TestCategories.User)]
+        [TestCategory(TestCategories.QueuesSynchronous)]
+        public void SynchronousTestListAllQueueMessages()
+        {
+            IQueueingService provider = CreateProvider();
+            QueueName queueName = CreateRandomQueueName();
+
+            provider.CreateQueue(queueName);
+
+            for (int i = 0; i < 28; i++)
+            {
+                provider.PostMessages(queueName, new Message<SampleMetadata>(TimeSpan.FromSeconds(120), new SampleMetadata(i, "Some Message " + i)));
+            }
+
+            HashSet<int> locatedMessages = new HashSet<int>();
+
+            ReadOnlyCollection<QueuedMessage> messages = ListAllMessages(provider, queueName, null, true, false);
+            foreach (QueuedMessage message in messages)
+                Assert.IsTrue(locatedMessages.Add(message.Body.ToObject<SampleMetadata>().ValueA), "Received the same message more than once.");
 
             Assert.AreEqual(28, locatedMessages.Count);
             for (int i = 0; i < 28; i++)
@@ -315,6 +345,8 @@
             {
                 Stopwatch processingTimer = Stopwatch.StartNew();
 
+                List<Exception> errors = new List<Exception>();
+
                 List<Thread> clientThreads = new List<Thread>();
 
                 for (int i = 0; i < clientCount; i++)
@@ -323,10 +355,17 @@
                     Thread client = new Thread(
                         () =>
                         {
-                            int result = PublishMessages(requestQueueName, responseQueueNames[clientIndex], cancellationTokenSource.Token);
-                            clientResults[clientIndex] = result;
+                            try
+                            {
+                                PublishMessages(requestQueueName, responseQueueNames[clientIndex], ref clientResults[clientIndex], cancellationTokenSource.Token);
+                            }
+                            catch (Exception ex)
+                            {
+                                errors.Add(ex);
+                            }
                         });
                     client.Start();
+                    client.Name = "Client " + i;
                     clientThreads.Add(client);
                 }
 
@@ -337,16 +376,26 @@
                     Thread server = new Thread(
                         () =>
                         {
-                            int result = SubscribeMessages(requestQueueName, cancellationTokenSource.Token);
-                            serverResults[serverIndex] = result;
+                            try
+                            {
+                                SubscribeMessages(requestQueueName, ref serverResults[serverIndex], cancellationTokenSource.Token);
+                            }
+                            catch (Exception ex)
+                            {
+                                errors.Add(ex);
+                            }
                         });
                     server.Start();
+                    server.Name = "Server " + i;
                     serverThreads.Add(server);
                 }
 
                 // wait for all client and server threads to finish processing
                 foreach (Thread thread in clientThreads.Concat(serverThreads))
                     thread.Join();
+
+                if (errors.Count > 0)
+                    throw new AggregateException(errors);
             }
 
             int clientTotal = 0;
@@ -377,10 +426,10 @@
                 Assert.Inconclusive("No messages were fully processed by the test.");
         }
 
-        private int PublishMessages(QueueName requestQueueName, QueueName replyQueueName, CancellationToken token)
+        private void PublishMessages(QueueName requestQueueName, QueueName replyQueueName, ref int processedMessages, CancellationToken token)
         {
             IQueueingService queueingService = CreateProvider();
-            int processedMessages = 0;
+            processedMessages = 0;
             Random random = new Random();
 
             while (true)
@@ -412,27 +461,33 @@
                             else if (token.IsCancellationRequested)
                             {
                                 // shutdown trigger
-                                return processedMessages;
+                                return;
                             }
                         }
                     }
 
                     if (handled)
                         break;
+
+                    if (token.IsCancellationRequested)
+                    {
+                        // shutdown trigger
+                        return;
+                    }
                 }
 
                 if (token.IsCancellationRequested)
                 {
                     // shutdown trigger
-                    return processedMessages;
+                    return;
                 }
             }
         }
 
-        private int SubscribeMessages(QueueName requestQueueName, CancellationToken token)
+        private void SubscribeMessages(QueueName requestQueueName, ref int processedMessages, CancellationToken token)
         {
             IQueueingService queueingService = CreateProvider();
-            int processedMessages = 0;
+            processedMessages = 0;
 
             while (true)
             {
@@ -445,7 +500,7 @@
                     {
                         if (token.IsCancellationRequested)
                         {
-                            return processedMessages;
+                            return;
                         }
 
                         CalculatorOperation operation = queuedMessage.Body.ToObject<CalculatorOperation>();
@@ -484,7 +539,7 @@
 
                 if (token.IsCancellationRequested)
                 {
-                    return processedMessages;
+                    return;
                 }
             }
         }
@@ -590,12 +645,47 @@
         /// <param name="limit">The maximum number of <see cref="CloudQueue"/> to return from a single call to <see cref="QueueingServiceExtensions.ListQueues"/>. If this value is <see langword="null"/>, a provider-specific default is used.</param>
         /// <param name="detailed"><see langword="true"/> to return detailed information for each queue; otherwise, <see langword="false"/>.</param>
         /// <returns>A collection of <see cref="CloudQueue"/> objects describing the available queues.</returns>
+        /// <exception cref="ArgumentNullException">If <paramref name="provider"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">If <paramref name="limit"/> is less than or equal to 0.</exception>
+        /// <exception cref="WebException">If the REST request does not return successfully.</exception>
         private static ReadOnlyCollection<CloudQueue> ListAllQueues(IQueueingService provider, int? limit, bool detailed)
         {
+            if (provider == null)
+                throw new ArgumentNullException("provider");
             if (limit <= 0)
                 throw new ArgumentOutOfRangeException("limit");
 
             return provider.ListQueues(null, limit, detailed).GetAllPages();
+        }
+
+        /// <summary>
+        /// Gets all existing messages in a queue through a series of synchronous operations,
+        /// each of which requests a subset of the available messages.
+        /// </summary>
+        /// <param name="provider">The queueing service.</param>
+        /// <param name="queueName">The queue name.</param>
+        /// <param name="limit">The maximum number of <see cref="QueuedMessage"/> objects to return from a single task. If this value is <see langword="null"/>, a provider-specific default is used.</param>
+        /// <param name="echo"><see langword="true"/> to include messages created by the current client; otherwise, <see langword="false"/>.</param>
+        /// <param name="includeClaimed"><see langword="true"/> to include claimed messages; otherwise <see langword="false"/> to return only unclaimed messages.</param>
+        /// <param name="progress">An optional callback object to receive progress notifications. If this is <see langword="null"/>, no progress notifications are sent.</param>
+        /// <returns>A collection of <see cref="CloudQueue"/> objects describing the available queues.</returns>
+        /// <exception cref="ArgumentNullException">
+        /// If <paramref name="provider"/> is <see langword="null"/>.
+        /// <para>-or-</para>
+        /// <para>If <paramref name="queueName"/> is <see langword="null"/>.</para>
+        /// </exception>
+        /// <exception cref="ArgumentOutOfRangeException">If <paramref name="limit"/> is less than or equal to 0.</exception>
+        /// <exception cref="WebException">If the REST request does not return successfully.</exception>
+        private static ReadOnlyCollection<QueuedMessage> ListAllMessages(IQueueingService provider, QueueName queueName, int? limit, bool echo, bool includeClaimed)
+        {
+            if (provider == null)
+                throw new ArgumentNullException("provider");
+            if (queueName == null)
+                throw new ArgumentNullException("queueName");
+            if (limit <= 0)
+                throw new ArgumentOutOfRangeException("limit");
+
+            return provider.ListMessages(queueName, null, limit, echo, includeClaimed).GetAllPages();
         }
 
         /// <summary>
@@ -614,9 +704,7 @@
         /// <returns>An instance of <see cref="IQueueingService"/> for integration testing.</returns>
         private IQueueingService CreateProvider()
         {
-            var provider = new CloudQueuesProvider(Bootstrapper.Settings.TestIdentity, Bootstrapper.Settings.DefaultRegion, Guid.NewGuid(), false, null);
-            provider.ConnectionLimit = 80;
-            return provider;
+            return UserQueuesTests.CreateProvider();
         }
     }
 }
